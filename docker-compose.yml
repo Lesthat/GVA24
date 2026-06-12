@@ -4,7 +4,7 @@ services:
     container_name: gva24
     restart: unless-stopped
     ports:
-      - "8787:8787"
+      - "5174:8787" # hôte:conteneur — l'app est accessible sur le port 5174
     volumes:
       - ./data:/data # la base de données (fichiers JSON) survit aux redémarrages
     environment:
