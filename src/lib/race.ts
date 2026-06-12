@@ -273,18 +273,24 @@ export function applyFinish(
       (l) => l.status === 'pending' && l.lapNumber > lapNumber,
     );
 
+    // Prédiction des segments : celle du coureur lui-même (même durée prévue
+    // que son 1er tour), pas celle du coureur précédemment prévu sur ce
+    // créneau — sinon la colonne « écart » comparerait deux allures.
+    const predDurMs =
+      Date.parse(target.predictedEnd_ts) - Date.parse(target.predictedStart_ts);
+    const predEndMs = Date.parse(target.predictedEnd_ts);
+
     // Boucles supplémentaires du même coureur (créées si le planning est trop court).
     for (let k = 1; k < effLoops; k++) {
       const segKey = lapKey(lapNumber + k);
-      const existing = state.laps[segKey];
       const segStartMs = boundary(k);
       const segEndMs = boundary(k + 1);
       laps[segKey] = {
         id: segKey,
         lapNumber: lapNumber + k,
         runnerLapNumber: 0, // recompté par la cascade
-        predictedStart_ts: existing?.predictedStart_ts ?? iso(segStartMs),
-        predictedEnd_ts: existing?.predictedEnd_ts ?? iso(segEndMs),
+        predictedStart_ts: iso(predEndMs + (k - 1) * predDurMs),
+        predictedEnd_ts: iso(predEndMs + k * predDurMs),
         runnerId: target.runnerId,
         status: 'done',
         actualStart_ts: iso(segStartMs),
