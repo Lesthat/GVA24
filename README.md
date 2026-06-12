@@ -14,13 +14,13 @@ docker compose up -d --build
 
 C'est tout : au premier démarrage le serveur crée automatiquement la course
 (code **2424**, 9 coureurs, planning complet). Le conteneur écoute en interne
-sur 8787, exposé sur l'hôte via le port **5174** (mapping `5174:8787` dans
+sur 8787, exposé sur l'hôte via le port **5175** (mapping `5175:8787` dans
 `docker-compose.yml`, modifiable). La base de données vit dans
 `./data/race-2424.json` (volume), elle survit aux redémarrages et mises à
 jour du conteneur.
 
-Vérification : `curl http://localhost:5174/api/race/2424` ou ouvrir
-<http://localhost:5174> et entrer le code 2424.
+Vérification : `curl http://localhost:5175/api/race/2424` ou ouvrir
+<http://localhost:5175> et entrer le code 2424.
 
 Variables d'environnement (dans `docker-compose.yml`) :
 
@@ -43,7 +43,7 @@ Dans NPM, *Hosts → Proxy Hosts → Add Proxy Host* :
 | **Domain Names** | `gva24.mondomaine.tld` (votre sous-domaine) |
 | **Scheme** | `http` |
 | **Forward Hostname / IP** | IP de la machine Docker (ex: `192.168.1.10`) — ou `gva24` si NPM est sur le même réseau Docker |
-| **Forward Port** | `5174` (ou `8787` si NPM joint le conteneur directement par son nom sur le réseau Docker) |
+| **Forward Port** | `5175` (ou `8787` si NPM joint le conteneur directement par son nom sur le réseau Docker) |
 | **Cache Assets** | désactivé |
 | **Block Common Exploits** | activé |
 | **Websockets Support** | **activé** (nécessaire au flux temps réel) |
