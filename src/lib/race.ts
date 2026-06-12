@@ -378,6 +378,37 @@ export function applyBasePace(state: RaceState, runnerId: string, paceSecPerKm: 
 }
 
 /**
+ * Annule la dernière arrivée (clic sur « Terminer » par erreur) : le tour
+ * terminé le plus récent redevient « en course » (son départ réel est
+ * conservé) et le tour auto-démarré qui le suivait redevient à venir.
+ */
+export function applyUndoFinish(state: RaceState): RaceState {
+  const all = sortedLaps(state);
+  const lastDone = [...all].reverse().find((l) => l.status === 'done');
+  if (!lastDone) return state;
+
+  const laps = { ...state.laps };
+  for (const lap of all) {
+    if (lap.status === 'running' && lap.lapNumber > lastDone.lapNumber) {
+      laps[lap.id] = {
+        ...lap,
+        status: 'pending',
+        actualStart_ts: null,
+        actualEnd_ts: null,
+        actualDuration_sec: null,
+      };
+    }
+  }
+  laps[lastDone.id] = {
+    ...lastDone,
+    status: 'running',
+    actualEnd_ts: null,
+    actualDuration_sec: null,
+  };
+  return recalcSchedule({ ...state, laps }, Date.now());
+}
+
+/**
  * Modifie la boucle (distance, D+), puis cascade : les durées prévues et les
  * allures réelles en dépendent.
  */

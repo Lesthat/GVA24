@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Play, Square, Timer } from 'lucide-react';
+import { Play, Square, Timer, Undo2 } from 'lucide-react';
 import { LoopsStepper } from '../components/LoopsStepper';
 import { useRaceStore } from '../store/raceStore';
 import { useNow } from '../lib/useNow';
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const race = useRaceStore((s) => s.race)!;
   const startLap = useRaceStore((s) => s.startLap);
   const finishLap = useRaceStore((s) => s.finishLap);
+  const undoFinish = useRaceStore((s) => s.undoFinish);
   const now = useNow();
 
   const startMs = Date.parse(race.config.startTime);
@@ -51,6 +52,14 @@ export default function Dashboard() {
   const transitionLeftSec = currentStartMs !== null ? Math.ceil((currentStartMs - now) / 1000) : 0;
   const inTransition = transitionLeftSec > 0;
   const shortTransition = inTransition && transitionLeftSec <= 90;
+
+  // Clic sur « Terminer » par erreur : on peut rendre la main au coureur
+  // précédent tant que le tour suivant n'a pas lui-même été terminé.
+  const lastDone = useMemo(
+    () => [...laps].reverse().find((l) => l.status === 'done') ?? null,
+    [laps],
+  );
+  const canUndo = lastDone !== null && current !== null && current.lapNumber === lastDone.lapNumber + 1;
 
   return (
     <div className="flex flex-col gap-4">
@@ -184,6 +193,25 @@ export default function Dashboard() {
         </section>
       )}
 
+      {canUndo && lastDone && (
+        <button
+          onClick={() => {
+            const prevName = race.runners[lastDone.runnerId]?.name ?? '';
+            const currName = current ? (race.runners[current.runnerId]?.name ?? '') : '';
+            if (
+              window.confirm(
+                `Annuler l'arrivée de ${prevName} ? ${prevName} repasse en course (chrono conservé) et ${currName} repasse à venir.`,
+              )
+            )
+              undoFinish();
+          }}
+          className="mx-auto flex items-center gap-1.5 text-sm text-slate-400 underline"
+        >
+          <Undo2 className="h-4 w-4" /> Erreur ? Annuler l'arrivée de{' '}
+          {race.runners[lastDone.runnerId]?.name}
+        </button>
+      )}
+
       {/* Coureur suivant */}
       {next && nextRunner && (
         <section className="rounded-2xl border border-slate-700 bg-slate-900 p-4">
@@ -262,7 +290,7 @@ function FinishControls({ onFinish }: { onFinish: (loops: number) => void }) {
         className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-500 py-3 text-lg font-bold text-slate-950"
       >
         <Square className="h-5 w-5" />
-        {loops > 1 ? `Terminer (${loops} tours)` : 'Terminer le tour'}
+        Terminer
       </button>
     </div>
   );

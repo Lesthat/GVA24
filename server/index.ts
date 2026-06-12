@@ -31,6 +31,7 @@ import {
   applyReset,
   applyRestore,
   applyStart,
+  applyUndoFinish,
 } from '../src/lib/race';
 import { createInitialRace } from '../src/lib/seedData';
 import type { RaceState } from '../src/lib/types';
@@ -119,6 +120,8 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
       return applyLapRunner(state, num(body.lapNumber), String(body.runnerId), body.insert === true);
     case 'loop':
       return applyLoop(state, num(body.distKm), num(body.elevM));
+    case 'undoFinish':
+      return applyUndoFinish(state);
     case 'raceTimes': {
       const startIso = body.startIso;
       const endIso = body.endIso;
