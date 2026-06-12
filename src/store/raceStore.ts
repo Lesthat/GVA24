@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import { get as dbGet, onValue, ref, runTransaction, type Unsubscribe } from 'firebase/database';
 import { db } from '../lib/firebase';
-import { applyBasePace, applyEdit, applyFinish, applyStart } from '../lib/race';
+import {
+  applyBasePace,
+  applyEdit,
+  applyFinish,
+  applyReset,
+  applyRestore,
+  applyStart,
+} from '../lib/race';
 import type { RaceState } from '../lib/types';
 
 const PIN_STORAGE_KEY = 'gva24_pin';
@@ -18,6 +25,8 @@ interface RaceStore {
   finishLap: (lapNumber: number, tsIso?: string) => Promise<void>;
   editLap: (lapNumber: number, patch: { startIso?: string | null; endIso?: string | null }) => Promise<void>;
   setBasePace: (runnerId: string, paceSecPerKm: number) => Promise<void>;
+  resetRace: () => Promise<void>;
+  restoreBackup: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -105,6 +114,10 @@ export const useRaceStore = create<RaceStore>((set, get) => {
     editLap: (lapNumber, patch) => mutate((s) => applyEdit(s, lapNumber, patch)),
 
     setBasePace: (runnerId, paceSecPerKm) => mutate((s) => applyBasePace(s, runnerId, paceSecPerKm)),
+
+    resetRace: () => mutate((s) => applyReset(s, new Date().toISOString())),
+
+    restoreBackup: () => mutate((s) => applyRestore(s)),
 
     clearError: () => set({ error: null }),
   };

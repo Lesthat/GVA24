@@ -116,7 +116,8 @@ export function recalcSchedule(state: RaceState, nowMs?: number): RaceState {
     cursorMs = cursorMs + durMs + transMs;
   }
 
-  return { config, runners, laps };
+  // Spread pour préserver les champs hors planning (ex: backup de session).
+  return { ...state, runners, laps };
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,7 +154,31 @@ export function applyStart(state: RaceState, lapNumber: number, tsIso: string): 
   return recalcSchedule({ ...state, laps }, tsMs);
 }
 
-/** Termine un tour : durée réelle, statut "done", puis cascade. */
+/**
+ * Enchaînement automatique : quand un tour se termine, le suivant démarre
+ * tout seul après la transition de 20 s (passage de la balise). Son départ
+ * réel est donc daté arrivée + 20 s ; l'UI affiche le compte à rebours tant
+ * que ce départ est dans le futur.
+ */
+function autoStartNext(state: RaceState, afterLapNumber: number, endIso: string): RaceState {
+  if (runningLap(state)) return state;
+  const next = sortedLaps(state).find(
+    (l) => l.status === 'pending' && l.lapNumber > afterLapNumber,
+  );
+  if (!next) return state;
+  const startMs = Date.parse(endIso) + state.config.transitionTime_sec * 1000;
+  const laps = {
+    ...state.laps,
+    [next.id]: {
+      ...next,
+      status: 'running' as const,
+      actualStart_ts: new Date(startMs).toISOString(),
+    },
+  };
+  return recalcSchedule({ ...state, laps }, Date.parse(endIso));
+}
+
+/** Termine un tour : durée réelle, statut "done", cascade, puis le tour suivant démarre automatiquement (transition 20 s). */
 export function applyFinish(state: RaceState, lapNumber: number, tsIso: string): RaceState {
   const key = lapKey(lapNumber);
   const target = state.laps[key];
@@ -174,7 +199,8 @@ export function applyFinish(state: RaceState, lapNumber: number, tsIso: string):
       actualDuration_sec: duration,
     },
   };
-  return recalcSchedule({ ...state, laps }, Date.parse(tsIso));
+  const closed = recalcSchedule({ ...state, laps }, Date.parse(tsIso));
+  return autoStartNext(closed, lapNumber, tsIso);
 }
 
 /**
@@ -210,7 +236,11 @@ export function applyEdit(
       actualDuration_sec: duration,
     },
   };
-  return recalcSchedule({ ...state, laps }, Date.now());
+  const result = recalcSchedule({ ...state, laps }, Date.now());
+  // Saisie manuelle de l'arrivée du tour en cours : on relance la boucle
+  // comme le ferait le bouton "Terminer".
+  if (target.status === 'running' && endIso) return autoStartNext(result, lapNumber, endIso);
+  return result;
 }
 
 /** Modifie l'allure de base d'un coureur, puis cascade. */
@@ -222,6 +252,29 @@ export function applyBasePace(state: RaceState, runnerId: string, paceSecPerKm: 
     [runnerId]: { ...runner, basePace_secPerKm: paceSecPerKm },
   };
   return recalcSchedule({ ...state, runners }, Date.now());
+}
+
+/**
+ * Réinitialise la course : tous les temps réels effacés, allures remises à la
+ * base, planning régénéré. L'état courant est sauvegardé dans `backup` pour
+ * pouvoir être restauré.
+ */
+export function applyReset(state: RaceState, nowIso: string): RaceState {
+  const runners: Record<string, Runner> = {};
+  for (const [id, r] of Object.entries(state.runners)) {
+    runners[id] = { ...r, currentPace_secPerKm: r.basePace_secPerKm };
+  }
+  const backup = { savedAt: nowIso, runners: state.runners, laps: state.laps ?? {} };
+  return recalcSchedule({ ...state, backup, runners, laps: {} });
+}
+
+/** Restaure la dernière session sauvegardée par un reset. */
+export function applyRestore(state: RaceState): RaceState {
+  if (!state.backup) return state;
+  return recalcSchedule(
+    { ...state, runners: state.backup.runners, laps: state.backup.laps ?? {} },
+    Date.now(),
+  );
 }
 
 /* ------------------------------ Sélecteurs ------------------------------ */

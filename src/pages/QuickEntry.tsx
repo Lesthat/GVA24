@@ -48,6 +48,10 @@ export default function QuickEntry() {
 
   const runner = race.runners[me];
   const isRunning = myLap?.status === 'running';
+  // Tour auto-démarré : départ réel = arrivée du précédent + 20 s. Tant que ce
+  // départ est dans le futur, on affiche le compte à rebours de transition.
+  const myStartMs = isRunning && myLap?.actualStart_ts ? Date.parse(myLap.actualStart_ts) : null;
+  const inTransition = myStartMs !== null && now < myStartMs;
 
   return (
     <div className="flex flex-col items-center gap-6 pt-4">
@@ -65,6 +69,18 @@ export default function QuickEntry() {
         <p className="text-center text-lg text-slate-400">
           Plus de tour planifié pour toi. Beau travail ! 🎉
         </p>
+      ) : isRunning && inTransition ? (
+        <div className="text-center">
+          <div className="text-sm uppercase text-amber-400">
+            Transition — passage de la balise
+          </div>
+          <div className="mt-2 text-7xl font-bold text-amber-400 tnum">
+            {Math.ceil((myStartMs! - now) / 1000)}
+          </div>
+          <div className="mt-1 text-slate-400">
+            ton chrono démarre automatiquement à {fmtTimeHM(myLap.actualStart_ts!)}
+          </div>
+        </div>
       ) : isRunning ? (
         <>
           <div className="text-center">

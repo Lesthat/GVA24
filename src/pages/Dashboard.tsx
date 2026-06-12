@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Play, Square, Timer } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { History, Play, RotateCcw, Settings, Square, Timer } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { useNow } from '../lib/useNow';
 import {
@@ -17,7 +17,10 @@ export default function Dashboard() {
   const race = useRaceStore((s) => s.race)!;
   const startLap = useRaceStore((s) => s.startLap);
   const finishLap = useRaceStore((s) => s.finishLap);
+  const resetRace = useRaceStore((s) => s.resetRace);
+  const restoreBackup = useRaceStore((s) => s.restoreBackup);
   const now = useNow();
+  const [showAdmin, setShowAdmin] = useState(false);
 
   const startMs = Date.parse(race.config.startTime);
   const endMs = Date.parse(race.config.endTime);
@@ -26,11 +29,16 @@ export default function Dashboard() {
   const laps = useMemo(() => sortedLaps(race), [race]);
   const done = doneLapsCount(race);
 
-  const upcoming = laps.filter((l) => l.status === 'pending' && l.id !== next?.id).slice(0, 5);
+  const upcoming = laps.filter((l) => l.status === 'pending' && l.id !== next?.id).slice(0, 8);
   const progress = Math.min(1, Math.max(0, (now - startMs) / (endMs - startMs)));
 
   const currentRunner = current ? race.runners[current.runnerId] : null;
   const nextRunner = next ? race.runners[next.runnerId] : null;
+
+  // Le tour suivant démarre automatiquement à arrivée + 20 s : tant que ce
+  // départ est dans le futur, on est en transition (passage de la balise).
+  const currentStartMs = current?.actualStart_ts ? Date.parse(current.actualStart_ts) : null;
+  const inTransition = currentStartMs !== null && now < currentStartMs;
 
   return (
     <div className="flex flex-col gap-4">
@@ -67,47 +75,76 @@ export default function Dashboard() {
 
       {/* Coureur en cours */}
       {current && currentRunner ? (
-        <section className="rounded-2xl border border-blue-500/50 bg-blue-500/10 p-4">
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-blue-400">
-            <Timer className="h-4 w-4" /> En course — tour #{current.lapNumber}
-          </div>
-          <div className="flex items-end justify-between gap-2">
-            <div>
-              <div className="text-3xl font-bold">{currentRunner.name}</div>
-              <div className="text-sm text-slate-300">
-                {ordinal(current.runnerLapNumber)} tour · allure prévue{' '}
-                {paceToStr(currentRunner.currentPace_secPerKm)}/km
+        <section
+          className={`rounded-2xl border p-4 ${
+            inTransition
+              ? 'border-amber-500/50 bg-amber-500/10'
+              : 'border-blue-500/50 bg-blue-500/10'
+          }`}
+        >
+          {inTransition ? (
+            <>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-amber-400">
+                <Timer className="h-4 w-4" /> Transition — passage de la balise
               </div>
-            </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-blue-300 tnum">
-                {current.actualStart_ts
-                  ? fmtChrono((now - Date.parse(current.actualStart_ts)) / 1000)
-                  : '—'}
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <div className="text-3xl font-bold">{currentRunner.name}</div>
+                  <div className="text-sm text-slate-300">
+                    {ordinal(current.runnerLapNumber)} tour · #{current.lapNumber} · le chrono
+                    démarre automatiquement
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-5xl font-bold text-amber-400 tnum">
+                    {Math.ceil((currentStartMs! - now) / 1000)}
+                  </div>
+                  <div className="text-xs text-slate-400">secondes</div>
+                </div>
               </div>
-              <div className="text-xs text-slate-400">
-                arrivée ~
-                {current.actualStart_ts
-                  ? fmtTimeHM(
-                      new Date(
-                        Date.parse(current.actualStart_ts) +
-                          lapDurationSec(
-                            currentRunner.currentPace_secPerKm,
-                            race.config.loopDistance_km,
-                          ) *
-                            1000,
-                      ).toISOString(),
-                    )
-                  : fmtTimeHM(current.predictedEnd_ts)}
+            </>
+          ) : (
+            <>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-blue-400">
+                <Timer className="h-4 w-4" /> En course — tour #{current.lapNumber}
               </div>
-            </div>
-          </div>
-          <button
-            onClick={() => finishLap(current.lapNumber)}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 py-3 text-lg font-bold text-slate-950"
-          >
-            <Square className="h-5 w-5" /> Terminer le tour
-          </button>
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <div className="text-3xl font-bold">{currentRunner.name}</div>
+                  <div className="text-sm text-slate-300">
+                    {ordinal(current.runnerLapNumber)} tour · allure prévue{' '}
+                    {paceToStr(currentRunner.currentPace_secPerKm)}/km
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold text-blue-300 tnum">
+                    {currentStartMs !== null ? fmtChrono((now - currentStartMs) / 1000) : '—'}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    arrivée ~
+                    {currentStartMs !== null
+                      ? fmtTimeHM(
+                          new Date(
+                            currentStartMs +
+                              lapDurationSec(
+                                currentRunner.currentPace_secPerKm,
+                                race.config.loopDistance_km,
+                              ) *
+                                1000,
+                          ).toISOString(),
+                        )
+                      : fmtTimeHM(current.predictedEnd_ts)}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => finishLap(current.lapNumber)}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 py-3 text-lg font-bold text-slate-950"
+              >
+                <Square className="h-5 w-5" /> Terminer le tour
+              </button>
+            </>
+          )}
         </section>
       ) : (
         <section className="rounded-2xl border border-slate-700 bg-slate-900 p-4 text-center text-slate-400">
@@ -135,12 +172,16 @@ export default function Dashboard() {
               <div className="text-xs text-slate-400">compte à rebours</div>
             </div>
           </div>
-          <button
-            onClick={() => startLap(next.lapNumber)}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-lg font-bold text-slate-950"
-          >
-            <Play className="h-5 w-5" /> Démarrer maintenant
-          </button>
+          {/* La boucle s'enchaîne toute seule : ce bouton ne sert qu'au départ
+              de la course (ou pour relancer après un trou). */}
+          {!current && (
+            <button
+              onClick={() => startLap(next.lapNumber)}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-lg font-bold text-slate-950"
+            >
+              <Play className="h-5 w-5" /> Démarrer maintenant
+            </button>
+          )}
         </section>
       )}
 
@@ -170,6 +211,53 @@ export default function Dashboard() {
         retour estimé{' '}
         {laps.length > 0 ? fmtDayTime(laps[laps.length - 1].predictedEnd_ts) : '—'}
       </div>
+
+      {/* Administration : reset de la course / restauration de la session */}
+      <section className="mt-2">
+        <button
+          onClick={() => setShowAdmin((v) => !v)}
+          className="mx-auto flex items-center gap-2 text-xs text-slate-500"
+        >
+          <Settings className="h-4 w-4" /> Administration
+        </button>
+        {showAdmin && (
+          <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <button
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'Réinitialiser la course ? Tous les temps réels seront effacés et le planning régénéré. La session actuelle sera sauvegardée et restaurable.',
+                  )
+                )
+                  resetRace();
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl border border-red-500/50 py-3 font-semibold text-red-400"
+            >
+              <RotateCcw className="h-5 w-5" /> Réinitialiser la course
+            </button>
+            {race.backup ? (
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Restaurer la session sauvegardée le ${fmtDayTime(race.backup!.savedAt)} ? L'état actuel sera remplacé.`,
+                    )
+                  )
+                    restoreBackup();
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-3 font-semibold text-slate-200"
+              >
+                <History className="h-5 w-5" /> Restaurer la session du{' '}
+                {fmtDayTime(race.backup.savedAt)}
+              </button>
+            ) : (
+              <p className="text-center text-xs text-slate-500">
+                Aucune session sauvegardée (le reset crée une sauvegarde).
+              </p>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

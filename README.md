@@ -47,7 +47,7 @@ Chaque membre de l'équipe ouvre l'URL sur son téléphone et entre le code
 
 | Route | Écran | Usage |
 |---|---|---|
-| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live), suivant (compte à rebours), 5 prochains passages, progression, tours/km cumulés |
+| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live), suivant (compte à rebours), 8 prochains passages, progression, tours/km cumulés, administration (reset/restore) |
 | `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, **saisie inline** des temps réels (corrections) |
 | `/runners` | **Coureurs** | Fiche par coureur : allure base vs réelle, historique des tours, modification de l'allure de base |
 | `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros boutons **JE PARS** / **J'ARRIVE**, saisie manuelle en cas d'oubli |
@@ -92,12 +92,26 @@ Deux téléphones qui pointent simultanément ne peuvent pas s'écraser.
 
 Règles de terrain encodées dans la logique :
 
-- un seul tour « en course » à la fois : si le suivant appuie sur **JE PARS**
-  alors que le précédent a oublié **J'ARRIVE**, le tour précédent est clôturé
+- **enchaînement automatique** : quand un tour est terminé (« Terminer » /
+  **J'ARRIVE** / saisie manuelle de l'arrivée), un compte à rebours de 20 s
+  démarre (passage de la balise) puis le tour suivant démarre tout seul
+  (départ réel = arrivée + 20 s). Le bouton « Démarrer » ne sert qu'au départ
+  de la course à 12h30 (ou pour relancer après un trou) ;
+- un seul tour « en course » à la fois : si quelqu'un force **JE PARS**
+  alors que le tour précédent n'est pas clos, celui-ci est clôturé
   automatiquement (arrivée = nouveau départ − 20 s) ;
-- **J'ARRIVE** sans **JE PARS** : le départ prévu sert de départ réel ;
+- **J'ARRIVE** sans départ enregistré : le départ prévu sert de départ réel ;
 - tout est corrigeable a posteriori dans la Timeline (saisie inline, heure de
   Paris, champ vide + OK pour effacer).
+
+### Reset / restore (Dashboard → Administration)
+
+- **Réinitialiser la course** : efface tous les temps réels, remet les allures
+  de base et régénère le planning — l'état courant est d'abord sauvegardé dans
+  `races/<PIN>/backup` ;
+- **Restaurer la dernière session** : remet la course dans l'état sauvegardé
+  lors du dernier reset (utile après un reset accidentel ou des essais de la
+  veille).
 
 ## Données & conventions techniques
 

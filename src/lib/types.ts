@@ -28,8 +28,16 @@ export interface RaceConfig {
   runnerOrder: string[]; // ids des coureurs dans l'ordre de rotation
 }
 
+/** Photo de la course prise au moment d'un reset, pour pouvoir la restaurer. */
+export interface RaceBackup {
+  savedAt: string; // ISO 8601 UTC
+  runners: Record<string, Runner>;
+  laps: Record<string, Lap>;
+}
+
 export interface RaceState {
   config: RaceConfig;
   runners: Record<string, Runner>;
   laps: Record<string, Lap>;
+  backup?: RaceBackup | null;
 }
