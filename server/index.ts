@@ -25,6 +25,7 @@ import {
   applyEdit,
   applyFinish,
   applyLapRunner,
+  applyLapSwap,
   applyLoop,
   applyOrder,
   applyRaceTimes,
@@ -122,6 +123,8 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
       return applyLoop(state, num(body.distKm), num(body.elevM));
     case 'undoFinish':
       return applyUndoFinish(state);
+    case 'lapSwap':
+      return applyLapSwap(state, num(body.lapA), num(body.lapB));
     case 'raceTimes': {
       const startIso = body.startIso;
       const endIso = body.endIso;

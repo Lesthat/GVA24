@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Play, Square } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Play, Square } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { sortedLaps } from '../lib/race';
 import { fmtDayTime, fmtDuration, fmtSignedDuration, fmtTimeHM, secondsBetween } from '../lib/time';
@@ -33,6 +33,7 @@ export default function Timeline() {
   const finishLap = useRaceStore((s) => s.finishLap);
   const editLap = useRaceStore((s) => s.editLap);
 
+  const swapLaps = useRaceStore((s) => s.swapLaps);
   const [filter, setFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -40,6 +41,15 @@ export default function Timeline() {
     const all = sortedLaps(race);
     return filter === 'all' ? all : all.filter((l) => l.runnerId === filter);
   }, [race, filter]);
+
+  // Séquence globale des tours à venir, pour les flèches de réordonnancement.
+  const pendingNumbers = useMemo(
+    () =>
+      sortedLaps(race)
+        .filter((l) => l.status === 'pending')
+        .map((l) => l.lapNumber),
+    [race],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -69,43 +79,81 @@ export default function Timeline() {
               key={lap.id}
               className={`rounded-xl border-l-4 bg-slate-900 ${accent(lap)}`}
             >
-              <button
-                className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left"
-                onClick={() => setExpanded(isOpen ? null : lap.id)}
-              >
-                <div className="min-w-0">
-                  <div className="font-semibold">
-                    #{lap.lapNumber} · {runner?.name}
-                    <span className="ml-2 text-xs font-normal text-slate-400">
-                      {lap.runnerLapNumber === 1 ? '1er' : `${lap.runnerLapNumber}e`} tour
-                    </span>
-                  </div>
-                  <div className="text-sm text-slate-400 tnum">
-                    prévu {fmtTimeHM(lap.predictedStart_ts)} → {fmtTimeHM(lap.predictedEnd_ts)} (
-                    {fmtDuration(predictedDur)})
-                  </div>
-                  {(lap.actualStart_ts || lap.actualEnd_ts) && (
-                    <div className="text-sm text-slate-200 tnum">
-                      réel {lap.actualStart_ts ? fmtTimeHM(lap.actualStart_ts) : '—'} →{' '}
-                      {lap.actualEnd_ts ? fmtTimeHM(lap.actualEnd_ts) : '…'}
-                      {lap.actualDuration_sec != null && ` (${fmtDuration(lap.actualDuration_sec)})`}
-                      {delta != null && (
-                        <span className={`ml-2 font-semibold ${deltaColor(delta)}`}>
-                          {fmtSignedDuration(delta)}
-                        </span>
-                      )}
+              <div className="flex items-stretch">
+                <button
+                  className="flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-3 text-left"
+                  onClick={() => setExpanded(isOpen ? null : lap.id)}
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold">
+                      #{lap.lapNumber} · {runner?.name}
+                      <span className="ml-2 text-xs font-normal text-slate-400">
+                        {lap.runnerLapNumber === 1 ? '1er' : `${lap.runnerLapNumber}e`} tour
+                      </span>
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge lap={lap} />
-                  {isOpen ? (
-                    <ChevronUp className="h-4 w-4 text-slate-500" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-slate-500" />
-                  )}
-                </div>
-              </button>
+                    <div className="text-sm text-slate-400 tnum">
+                      prévu {fmtTimeHM(lap.predictedStart_ts)} → {fmtTimeHM(lap.predictedEnd_ts)} (
+                      {fmtDuration(predictedDur)})
+                    </div>
+                    {(lap.actualStart_ts || lap.actualEnd_ts) && (
+                      <div className="text-sm text-slate-200 tnum">
+                        réel {lap.actualStart_ts ? fmtTimeHM(lap.actualStart_ts) : '—'} →{' '}
+                        {lap.actualEnd_ts ? fmtTimeHM(lap.actualEnd_ts) : '…'}
+                        {lap.actualDuration_sec != null &&
+                          ` (${fmtDuration(lap.actualDuration_sec)})`}
+                        {delta != null && (
+                          <span className={`ml-2 font-semibold ${deltaColor(delta)}`}>
+                            {fmtSignedDuration(delta)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge lap={lap} />
+                    {isOpen ? (
+                      <ChevronUp className="h-4 w-4 text-slate-500" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-slate-500" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Réordonner les tours à venir : permute avec le tour
+                    pending adjacent (masqué quand un filtre est actif). */}
+                {lap.status === 'pending' && filter === 'all' && (
+                  <div className="flex flex-col justify-center gap-1 py-2 pr-3">
+                    {(() => {
+                      const idx = pendingNumbers.indexOf(lap.lapNumber);
+                      const prev = idx > 0 ? pendingNumbers[idx - 1] : null;
+                      const next =
+                        idx >= 0 && idx < pendingNumbers.length - 1
+                          ? pendingNumbers[idx + 1]
+                          : null;
+                      return (
+                        <>
+                          <button
+                            onClick={() => prev !== null && swapLaps(prev, lap.lapNumber)}
+                            disabled={prev === null}
+                            aria-label="monter ce coureur d'un tour"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 disabled:opacity-30"
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => next !== null && swapLaps(lap.lapNumber, next)}
+                            disabled={next === null}
+                            aria-label="descendre ce coureur d'un tour"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 disabled:opacity-30"
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
 
               {isOpen && (
                 /* Référence de date pour la saisie : un temps réel déjà connu

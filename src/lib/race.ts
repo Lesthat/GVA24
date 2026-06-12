@@ -377,6 +377,19 @@ export function applyBasePace(state: RaceState, runnerId: string, paceSecPerKm: 
   return recalcSchedule({ ...state, runners }, Date.now());
 }
 
+/** Échange les coureurs de deux tours à venir (réordonnancement Timeline). */
+export function applyLapSwap(state: RaceState, lapA: number, lapB: number): RaceState {
+  const a = state.laps[lapKey(lapA)];
+  const b = state.laps[lapKey(lapB)];
+  if (!a || !b || a.status !== 'pending' || b.status !== 'pending') return state;
+  const laps = {
+    ...state.laps,
+    [a.id]: { ...a, runnerId: b.runnerId },
+    [b.id]: { ...b, runnerId: a.runnerId },
+  };
+  return recalcSchedule({ ...state, laps }, Date.now());
+}
+
 /**
  * Annule la dernière arrivée (clic sur « Terminer » par erreur) : le tour
  * terminé le plus récent redevient « en course » (son départ réel est
