@@ -277,6 +277,27 @@ export function applyBasePace(state: RaceState, runnerId: string, paceSecPerKm: 
 }
 
 /**
+ * Modifie le départ et/ou la fin de la course, puis régénère le planning.
+ * Les tours déjà démarrés/terminés sont conservés tels quels.
+ */
+export function applyRaceTimes(state: RaceState, startIso: string, endIso: string): RaceState {
+  const startMs = Date.parse(startIso);
+  const endMs = Date.parse(endIso);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return state;
+  return recalcSchedule(
+    {
+      ...state,
+      config: {
+        ...state.config,
+        startTime: new Date(startMs).toISOString(),
+        endTime: new Date(endMs).toISOString(),
+      },
+    },
+    Date.now(),
+  );
+}
+
+/**
  * Réinitialise la course : tous les temps réels effacés, allures remises à la
  * base, planning régénéré. L'état courant est sauvegardé dans `backup` pour
  * pouvoir être restauré.

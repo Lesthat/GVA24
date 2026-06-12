@@ -16,8 +16,9 @@ const RUNNERS: Array<{ id: string; name: string; pace: number }> = [
 ];
 
 /**
- * Course du 14 juin 2026 12h30 → 15 juin 12h00 (heure de Paris, UTC+2),
- * boucle de 7 km, transition 20 s, 9 coureurs en rotation.
+ * Course du samedi 13 juin 2026 12h30 → dimanche 14 juin 12h00 (heure de
+ * Paris, UTC+2), boucle de 7 km, transition 20 s, 9 coureurs en rotation.
+ * Les dates restent modifiables dans l'app (Dashboard → Administration).
  */
 export function createInitialRace(): RaceState {
   const runners: Record<string, Runner> = {};
@@ -31,8 +32,8 @@ export function createInitialRace(): RaceState {
   }
   return recalcSchedule({
     config: {
-      startTime: '2026-06-14T10:30:00.000Z',
-      endTime: '2026-06-15T10:00:00.000Z',
+      startTime: '2026-06-13T10:30:00.000Z',
+      endTime: '2026-06-14T10:00:00.000Z',
       loopDistance_km: 7,
       transitionTime_sec: 20,
       runnerOrder: RUNNERS.map((r) => r.id),

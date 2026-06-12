@@ -24,6 +24,7 @@ import {
   applyBasePace,
   applyEdit,
   applyFinish,
+  applyRaceTimes,
   applyReset,
   applyRestore,
   applyStart,
@@ -100,6 +101,15 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
     }
     case 'basePace':
       return applyBasePace(state, String(body.runnerId), num(body.pace));
+    case 'raceTimes': {
+      const startIso = body.startIso;
+      const endIso = body.endIso;
+      if (typeof startIso !== 'string' || Number.isNaN(Date.parse(startIso)))
+        throw new BadRequest('startIso invalide');
+      if (typeof endIso !== 'string' || Number.isNaN(Date.parse(endIso)))
+        throw new BadRequest('endIso invalide');
+      return applyRaceTimes(state, startIso, endIso);
+    }
     case 'reset':
       return applyReset(state, new Date().toISOString());
     case 'restore':

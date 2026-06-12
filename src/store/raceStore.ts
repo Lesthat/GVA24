@@ -15,6 +15,7 @@ interface RaceStore {
   finishLap: (lapNumber: number, tsIso?: string) => Promise<void>;
   editLap: (lapNumber: number, patch: { startIso?: string | null; endIso?: string | null }) => Promise<void>;
   setBasePace: (runnerId: string, paceSecPerKm: number) => Promise<void>;
+  setRaceTimes: (startIso: string, endIso: string) => Promise<void>;
   resetRace: () => Promise<void>;
   restoreBackup: () => Promise<void>;
   clearError: () => void;
@@ -96,6 +97,8 @@ export const useRaceStore = create<RaceStore>((set, get) => {
 
     setBasePace: (runnerId, paceSecPerKm) =>
       mutate({ type: 'basePace', runnerId, pace: paceSecPerKm }),
+
+    setRaceTimes: (startIso, endIso) => mutate({ type: 'raceTimes', startIso, endIso }),
 
     resetRace: () => mutate({ type: 'reset' }),
 

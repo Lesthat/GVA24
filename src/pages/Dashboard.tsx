@@ -9,7 +9,14 @@ import {
   runningLap,
   sortedLaps,
 } from '../lib/race';
-import { fmtChrono, fmtDayTime, fmtTimeHM, paceToStr } from '../lib/time';
+import {
+  fmtChrono,
+  fmtDayTime,
+  fmtTimeHM,
+  isoToParisLocalInput,
+  paceToStr,
+  parisLocalInputToIso,
+} from '../lib/time';
 
 const ordinal = (n: number) => (n === 1 ? '1er' : `${n}e`);
 
@@ -222,6 +229,11 @@ export default function Dashboard() {
         </button>
         {showAdmin && (
           <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+            <RaceTimesForm
+              key={race.config.startTime + race.config.endTime}
+              startIso={race.config.startTime}
+              endIso={race.config.endTime}
+            />
             <button
               onClick={() => {
                 if (
@@ -258,6 +270,60 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Modification du départ / de la fin de la course (heure de Paris). */
+function RaceTimesForm({ startIso, endIso }: { startIso: string; endIso: string }) {
+  const setRaceTimes = useRaceStore((s) => s.setRaceTimes);
+  const [start, setStart] = useState(() => isoToParisLocalInput(startIso));
+  const [end, setEnd] = useState(() => isoToParisLocalInput(endIso));
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = start !== isoToParisLocalInput(startIso) || end !== isoToParisLocalInput(endIso);
+
+  function save() {
+    const s = parisLocalInputToIso(start);
+    const e = parisLocalInputToIso(end);
+    if (!s || !e || Date.parse(e) <= Date.parse(s)) {
+      setError('Dates invalides : la fin doit être après le départ.');
+      return;
+    }
+    setError(null);
+    setRaceTimes(s, e);
+  }
+
+  return (
+    <div className="mb-2 flex flex-col gap-2 border-b border-slate-800 pb-4">
+      <div className="text-xs font-semibold uppercase text-slate-400">Horaires de la course</div>
+      <label className="flex flex-col gap-1 text-xs text-slate-400">
+        Départ (heure de Paris)
+        <input
+          type="datetime-local"
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 tnum outline-none focus:border-emerald-400"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-slate-400">
+        Fin (heure de Paris)
+        <input
+          type="datetime-local"
+          value={end}
+          onChange={(e) => setEnd(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 tnum outline-none focus:border-emerald-400"
+        />
+      </label>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      {dirty && (
+        <button
+          onClick={save}
+          className="rounded-xl bg-emerald-500 py-2.5 font-bold text-slate-950"
+        >
+          Enregistrer et recalculer le planning
+        </button>
+      )}
     </div>
   );
 }

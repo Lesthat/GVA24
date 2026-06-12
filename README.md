@@ -1,7 +1,7 @@
 # GVA24 — Gestion de relais 24h
 
 Application web collaborative temps-réel pour gérer les relais de la course de
-24h (14 juin 2026 12h30 → 15 juin 2026 12h00, boucle de 7 km, 9 coureurs en
+24h (samedi 13 juin 2026 12h30 → dimanche 14 juin 12h00, modifiable dans l'app, boucle de 7 km, 9 coureurs en
 rotation). Mobile-first, multi-utilisateurs, auto-hébergée : un seul conteneur
 Docker, base de données locale (fichiers JSON), temps réel via Server-Sent
 Events. **Aucun service externe.**
@@ -73,7 +73,7 @@ En production sans Docker : `npm run build && npm start`.
 
 | Route | Écran | Usage |
 |---|---|---|
-| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live ou décompte de transition), suivant, 8 prochains passages, progression, administration (reset/restore) |
+| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live ou décompte de transition), suivant, 8 prochains passages, progression, administration (horaires de course, reset/restore) |
 | `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, saisie inline des temps réels |
 | `/runners` | **Coureurs** | Fiche par coureur : allure base vs réelle, historique des tours, modification de l'allure de base |
 | `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros bouton **J'ARRIVE**, décompte de transition, saisie manuelle |

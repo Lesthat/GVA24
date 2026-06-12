@@ -92,6 +92,23 @@ export function secondsBetween(laterIso: string, earlierIso: string): number {
   return differenceInSeconds(parseISO(laterIso), parseISO(earlierIso));
 }
 
+/** ISO UTC → valeur pour <input type="datetime-local"> en heure de Paris. */
+export function isoToParisLocalInput(iso: string): string {
+  const d = parseISO(iso);
+  return new Date(d.getTime() + parisOffsetMs(d)).toISOString().slice(0, 16);
+}
+
+/** Valeur de <input type="datetime-local"> (heure de Paris) → ISO UTC. */
+export function parisLocalInputToIso(value: string): string | null {
+  const naive = Date.parse(`${value}:00.000Z`);
+  if (Number.isNaN(naive)) return null;
+  // Heure murale interprétée comme UTC puis corrigée du décalage Paris
+  // (deux passes pour rester exact autour d'un changement d'heure).
+  let utc = naive - parisOffsetMs(new Date(naive));
+  utc = naive - parisOffsetMs(new Date(utc));
+  return new Date(utc).toISOString();
+}
+
 /**
  * Convertit une heure murale Paris ("14:32" ou "14:32:10") en ISO UTC.
  * La course chevauche deux jours : on choisit la date (J−1, J, J+1 autour de
