@@ -141,15 +141,7 @@ export default function RunnerDetail() {
                     <span className="font-semibold">{fmtDuration(lap.actualDuration_sec)}</span>
                     {lapPace != null && <span>{paceToStr(lapPace)}/km</span>}
                     {delta != null && (
-                      <span
-                        className={
-                          delta > 60
-                            ? 'text-orange-400'
-                            : delta < -60
-                              ? 'text-red-400'
-                              : 'text-emerald-400'
-                        }
-                      >
+                      <span className={delta > 60 ? 'text-orange-400' : 'text-emerald-400'}>
                         {fmtSignedDuration(delta)}
                       </span>
                     )}

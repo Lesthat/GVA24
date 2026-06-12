@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { History, Play, RotateCcw, Settings, Square, Timer } from 'lucide-react';
+import { useMemo } from 'react';
+import { Play, Square, Timer } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { useNow } from '../lib/useNow';
 import {
@@ -9,14 +9,7 @@ import {
   runningLap,
   sortedLaps,
 } from '../lib/race';
-import {
-  fmtChrono,
-  fmtDayTime,
-  fmtTimeHM,
-  isoToParisLocalInput,
-  paceToStr,
-  parisLocalInputToIso,
-} from '../lib/time';
+import { fmtChrono, fmtDayTime, fmtTimeHM, paceToStr } from '../lib/time';
 
 const ordinal = (n: number) => (n === 1 ? '1er' : `${n}e`);
 
@@ -24,10 +17,7 @@ export default function Dashboard() {
   const race = useRaceStore((s) => s.race)!;
   const startLap = useRaceStore((s) => s.startLap);
   const finishLap = useRaceStore((s) => s.finishLap);
-  const resetRace = useRaceStore((s) => s.resetRace);
-  const restoreBackup = useRaceStore((s) => s.restoreBackup);
   const now = useNow();
-  const [showAdmin, setShowAdmin] = useState(false);
 
   const startMs = Date.parse(race.config.startTime);
   const endMs = Date.parse(race.config.endTime);
@@ -254,111 +244,6 @@ export default function Dashboard() {
         {laps.length > 0 ? fmtDayTime(laps[laps.length - 1].predictedEnd_ts) : '—'}
       </div>
 
-      {/* Administration : reset de la course / restauration de la session */}
-      <section className="mt-2">
-        <button
-          onClick={() => setShowAdmin((v) => !v)}
-          className="mx-auto flex items-center gap-2 text-xs text-slate-500"
-        >
-          <Settings className="h-4 w-4" /> Administration
-        </button>
-        {showAdmin && (
-          <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-4">
-            <RaceTimesForm
-              key={race.config.startTime + race.config.endTime}
-              startIso={race.config.startTime}
-              endIso={race.config.endTime}
-            />
-            <button
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Réinitialiser la course ? Tous les temps réels seront effacés et le planning régénéré. La session actuelle sera sauvegardée et restaurable.',
-                  )
-                )
-                  resetRace();
-              }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-red-500/50 py-3 font-semibold text-red-400"
-            >
-              <RotateCcw className="h-5 w-5" /> Réinitialiser la course
-            </button>
-            {race.backup ? (
-              <button
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      `Restaurer la session sauvegardée le ${fmtDayTime(race.backup!.savedAt)} ? L'état actuel sera remplacé.`,
-                    )
-                  )
-                    restoreBackup();
-                }}
-                className="flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-3 font-semibold text-slate-200"
-              >
-                <History className="h-5 w-5" /> Restaurer la session du{' '}
-                {fmtDayTime(race.backup.savedAt)}
-              </button>
-            ) : (
-              <p className="text-center text-xs text-slate-500">
-                Aucune session sauvegardée (le reset crée une sauvegarde).
-              </p>
-            )}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-/** Modification du départ / de la fin de la course (heure de Paris). */
-function RaceTimesForm({ startIso, endIso }: { startIso: string; endIso: string }) {
-  const setRaceTimes = useRaceStore((s) => s.setRaceTimes);
-  const [start, setStart] = useState(() => isoToParisLocalInput(startIso));
-  const [end, setEnd] = useState(() => isoToParisLocalInput(endIso));
-  const [error, setError] = useState<string | null>(null);
-
-  const dirty = start !== isoToParisLocalInput(startIso) || end !== isoToParisLocalInput(endIso);
-
-  function save() {
-    const s = parisLocalInputToIso(start);
-    const e = parisLocalInputToIso(end);
-    if (!s || !e || Date.parse(e) <= Date.parse(s)) {
-      setError('Dates invalides : la fin doit être après le départ.');
-      return;
-    }
-    setError(null);
-    setRaceTimes(s, e);
-  }
-
-  return (
-    <div className="mb-2 flex flex-col gap-2 border-b border-slate-800 pb-4">
-      <div className="text-xs font-semibold uppercase text-slate-400">Horaires de la course</div>
-      <label className="flex flex-col gap-1 text-xs text-slate-400">
-        Départ (heure de Paris)
-        <input
-          type="datetime-local"
-          value={start}
-          onChange={(e) => setStart(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 tnum outline-none focus:border-emerald-400"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-slate-400">
-        Fin (heure de Paris)
-        <input
-          type="datetime-local"
-          value={end}
-          onChange={(e) => setEnd(e.target.value)}
-          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 tnum outline-none focus:border-emerald-400"
-        />
-      </label>
-      {error && <p className="text-xs text-red-400">{error}</p>}
-      {dirty && (
-        <button
-          onClick={save}
-          className="rounded-xl bg-emerald-500 py-2.5 font-bold text-slate-950"
-        >
-          Enregistrer et recalculer le planning
-        </button>
-      )}
     </div>
   );
 }

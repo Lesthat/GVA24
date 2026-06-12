@@ -13,20 +13,18 @@ function lapDelta(lap: Lap): number | null {
   return lap.actualDuration_sec - predicted;
 }
 
-/** Couleurs : gris à venir, bleu en course, vert/orange/rouge selon l'écart. */
+/**
+ * Couleurs : gris à venir, bleu en course ; terminé → vert si dans les temps
+ * ou plus rapide que prévu (c'est bien !), orange si plus lent (> 1 min).
+ */
 function accent(lap: Lap): string {
   if (lap.status === 'pending') return 'border-slate-600';
   if (lap.status === 'running') return 'border-blue-500';
-  const delta = lapDelta(lap) ?? 0;
-  if (delta > 60) return 'border-orange-500';
-  if (delta < -60) return 'border-red-500';
-  return 'border-emerald-500';
+  return (lapDelta(lap) ?? 0) > 60 ? 'border-orange-500' : 'border-emerald-500';
 }
 
 function deltaColor(delta: number): string {
-  if (delta > 60) return 'text-orange-400';
-  if (delta < -60) return 'text-red-400';
-  return 'text-emerald-400';
+  return delta > 60 ? 'text-orange-400' : 'text-emerald-400';
 }
 
 export default function Timeline() {

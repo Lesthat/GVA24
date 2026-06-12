@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Gauge, ListOrdered, LogOut, Users, Zap, WifiOff, X } from 'lucide-react';
+import { Gauge, ListOrdered, LogOut, Settings, Users, Zap, WifiOff, X } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 
 const tabs = [
@@ -8,6 +8,7 @@ const tabs = [
   { to: '/timeline', label: 'Timeline', icon: ListOrdered },
   { to: '/runners', label: 'Coureurs', icon: Users },
   { to: '/quick', label: 'Saisie', icon: Zap },
+  { to: '/admin', label: 'Admin', icon: Settings },
 ];
 
 export function Layout() {
@@ -71,7 +72,7 @@ export function Layout() {
       </main>
 
       <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-3xl -translate-x-1/2 border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {tabs.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}

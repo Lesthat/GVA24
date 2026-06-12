@@ -73,13 +73,14 @@ En production sans Docker : `npm run build && npm start`.
 
 | Route | Écran | Usage |
 |---|---|---|
-| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live ou décompte de transition), suivant, 8 prochains passages, progression, administration (horaires de course, reset/restore) |
+| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live ou décompte de transition), suivant, 8 prochains passages, progression |
 | `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, saisie inline des temps réels |
 | `/runners` | **Coureurs** | Fiche par coureur : allure base vs réelle, historique des tours, modification de l'allure de base |
 | `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros bouton **J'ARRIVE**, décompte de transition, saisie manuelle |
+| `/admin` | **Administration** | Horaires de la course, réinitialisation, restauration de la dernière session |
 
-Codes couleur timeline : gris = à venir, bleu = en course, vert = terminé dans
-les temps (±1 min), orange = en retard (> +1 min), rouge = en avance (> −1 min).
+Codes couleur timeline : gris = à venir, bleu = en course, vert = terminé
+dans les temps ou plus rapide que prévu, orange = plus lent que prévu (> 1 min).
 
 ## Architecture
 
@@ -121,10 +122,13 @@ base de données locale : data/race-2424.json (écriture atomique tmp+rename)
   (+20 s) et recalcule sa durée s'il est terminé ;
 - un seul tour « en course » à la fois ; **J'ARRIVE** sans départ enregistré
   retombe sur le départ prévu ;
+- **les 24h découlent du premier départ réel** : l'heure configurée ne sert
+  qu'au compte à rebours ; le départ réel du premier coureur recale la fenêtre
+  de course (durée conservée), visible et modifiable dans l'onglet Admin ;
 - tout est corrigeable a posteriori dans la Timeline (heure de Paris, champ
   vide + OK pour effacer).
 
-### Reset / restore (Dashboard → Administration)
+### Reset / restore (onglet Admin)
 
 - **Réinitialiser la course** : efface les temps réels, remet les allures de
   base, régénère le planning — l'état courant est d'abord sauvegardé ;

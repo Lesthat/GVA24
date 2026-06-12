@@ -8,6 +8,7 @@ import Timeline from './pages/Timeline';
 import Runners from './pages/Runners';
 import RunnerDetail from './pages/RunnerDetail';
 import QuickEntry from './pages/QuickEntry';
+import Admin from './pages/Admin';
 
 export default function App() {
   const pin = useRaceStore((s) => s.pin);
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/runners" element={<Runners />} />
         <Route path="/runners/:runnerId" element={<RunnerDetail />} />
         <Route path="/quick" element={<QuickEntry />} />
+        <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

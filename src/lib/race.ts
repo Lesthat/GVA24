@@ -125,6 +125,29 @@ export function recalcSchedule(state: RaceState, nowMs?: number): RaceState {
 /* ------------------------------------------------------------------ */
 
 /**
+ * Les 24h découlent du premier départ réel : démarrer (ou corriger) le tour
+ * n°1 recale la fenêtre de course — départ = départ réel, fin décalée
+ * d'autant (la durée configurée est conservée). Visible dans l'Administration,
+ * qui reste modifiable manuellement ensuite.
+ */
+function alignWindowToFirstStart(state: RaceState): RaceState {
+  const first = state.laps[lapKey(1)];
+  if (!first?.actualStart_ts) return state;
+  const startMs = Date.parse(first.actualStart_ts);
+  const oldStartMs = Date.parse(state.config.startTime);
+  if (startMs === oldStartMs) return state;
+  const durationMs = Date.parse(state.config.endTime) - oldStartMs;
+  return {
+    ...state,
+    config: {
+      ...state.config,
+      startTime: new Date(startMs).toISOString(),
+      endTime: new Date(startMs + durationMs).toISOString(),
+    },
+  };
+}
+
+/**
  * Démarre un tour. S'il restait un tour "running" plus ancien (le coureur
  * précédent a oublié de pointer son arrivée), il est clôturé automatiquement
  * à départ − transition.
@@ -151,7 +174,7 @@ export function applyStart(state: RaceState, lapNumber: number, tsIso: string): 
   }
 
   laps[key] = { ...target, status: 'running', actualStart_ts: tsIso };
-  return recalcSchedule({ ...state, laps }, tsMs);
+  return recalcSchedule(alignWindowToFirstStart({ ...state, laps }), tsMs);
 }
 
 /**
@@ -258,7 +281,7 @@ export function applyEdit(
     }
   }
 
-  const result = recalcSchedule({ ...state, laps }, Date.now());
+  const result = recalcSchedule(alignWindowToFirstStart({ ...state, laps }), Date.now());
   // Saisie manuelle de l'arrivée du tour en cours : on relance la boucle
   // comme le ferait le bouton "Terminer".
   if (target.status === 'running' && endIso) return autoStartNext(result, lapNumber, endIso);
