@@ -51,7 +51,8 @@ export default function QuickEntry() {
   // Tour auto-démarré : départ réel = arrivée du précédent + 20 s. Tant que ce
   // départ est dans le futur, on affiche le compte à rebours de transition.
   const myStartMs = isRunning && myLap?.actualStart_ts ? Date.parse(myLap.actualStart_ts) : null;
-  const inTransition = myStartMs !== null && now < myStartMs;
+  const transitionLeftSec = myStartMs !== null ? Math.ceil((myStartMs - now) / 1000) : 0;
+  const inTransition = transitionLeftSec > 0;
 
   return (
     <div className="flex flex-col items-center gap-6 pt-4">
@@ -72,10 +73,14 @@ export default function QuickEntry() {
       ) : isRunning && inTransition ? (
         <div className="text-center">
           <div className="text-sm uppercase text-amber-400">
-            Transition — passage de la balise
+            {transitionLeftSec <= 90 ? 'Transition — passage de la balise' : 'Départ programmé'}
           </div>
-          <div className="mt-2 text-7xl font-bold text-amber-400 tnum">
-            {Math.ceil((myStartMs! - now) / 1000)}
+          <div
+            className={`mt-2 font-bold text-amber-400 tnum ${
+              transitionLeftSec <= 90 ? 'text-7xl' : 'text-5xl'
+            }`}
+          >
+            {transitionLeftSec <= 90 ? transitionLeftSec : fmtChrono(transitionLeftSec)}
           </div>
           <div className="mt-1 text-slate-400">
             ton chrono démarre automatiquement à {fmtTimeHM(myLap.actualStart_ts!)}
@@ -137,18 +142,20 @@ export default function QuickEntry() {
           </button>
           {showManual && (
             <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+              {/* Une heure saisie ici vient toujours d'un oubli récent :
+                  la date de référence est "maintenant", pas le planning. */}
               <TimeEdit
                 key={`qs-${myLap.id}-${myLap.actualStart_ts ?? ''}`}
                 label="Heure de départ réelle"
                 valueIso={myLap.actualStart_ts}
-                refIso={myLap.predictedStart_ts}
+                refIso={new Date(now).toISOString()}
                 onSave={(iso) => editLap(myLap.lapNumber, { startIso: iso })}
               />
               <TimeEdit
                 key={`qe-${myLap.id}-${myLap.actualEnd_ts ?? ''}`}
                 label="Heure d'arrivée réelle"
                 valueIso={myLap.actualEnd_ts}
-                refIso={myLap.predictedEnd_ts}
+                refIso={myLap.actualStart_ts ?? new Date(now).toISOString()}
                 onSave={(iso) => editLap(myLap.lapNumber, { endIso: iso })}
               />
             </div>

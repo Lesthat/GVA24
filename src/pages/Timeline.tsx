@@ -110,6 +110,9 @@ export default function Timeline() {
               </button>
 
               {isOpen && (
+                /* Référence de date pour la saisie : un temps réel déjà connu
+                   du tour, sinon "maintenant" (tour démarré), sinon le prévu.
+                   Évite qu'un test avant le jour J atterrisse sur le jour J. */
                 <div className="flex flex-col gap-3 border-t border-slate-800 px-3 py-3">
                   <div className="flex gap-2">
                     {lap.status === 'pending' && (
@@ -133,7 +136,10 @@ export default function Timeline() {
                     key={`s-${lap.id}-${lap.actualStart_ts ?? ''}`}
                     label="Départ réel (heure de Paris)"
                     valueIso={lap.actualStart_ts}
-                    refIso={lap.predictedStart_ts}
+                    refIso={
+                      lap.actualEnd_ts ??
+                      (lap.status === 'pending' ? lap.predictedStart_ts : new Date().toISOString())
+                    }
                     allowClear
                     onSave={(iso) => editLap(lap.lapNumber, { startIso: iso })}
                   />
@@ -141,7 +147,10 @@ export default function Timeline() {
                     key={`e-${lap.id}-${lap.actualEnd_ts ?? ''}`}
                     label="Arrivée réelle (heure de Paris)"
                     valueIso={lap.actualEnd_ts}
-                    refIso={lap.predictedEnd_ts}
+                    refIso={
+                      lap.actualStart_ts ??
+                      (lap.status === 'pending' ? lap.predictedEnd_ts : new Date().toISOString())
+                    }
                     allowClear
                     onSave={(iso) => editLap(lap.lapNumber, { endIso: iso })}
                   />

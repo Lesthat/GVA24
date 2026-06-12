@@ -4,7 +4,11 @@ import { parisWallToUtcIso, fmtTimeHMS } from '../lib/time';
 interface Props {
   label: string;
   valueIso: string | null | undefined;
-  /** Référence pour résoudre la date (la course chevauche deux jours). */
+  /**
+   * Référence pour résoudre la date (la course chevauche deux jours).
+   * Si un temps réel existe déjà (valueIso), c'est lui qui sert de référence :
+   * une correction reste sur le même jour que la valeur corrigée.
+   */
   refIso: string;
   onSave: (iso: string | null) => void;
   allowClear?: boolean;
@@ -21,7 +25,7 @@ export function TimeEdit({ label, valueIso, refIso, onSave, allowClear }: Props)
       if (allowClear) onSave(null);
       return;
     }
-    const iso = parisWallToUtcIso(trimmed, refIso);
+    const iso = parisWallToUtcIso(trimmed, valueIso ?? refIso);
     if (!iso) {
       setInvalid(true);
       return;

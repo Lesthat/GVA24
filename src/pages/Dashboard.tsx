@@ -37,15 +37,29 @@ export default function Dashboard() {
   const done = doneLapsCount(race);
 
   const upcoming = laps.filter((l) => l.status === 'pending' && l.id !== next?.id).slice(0, 8);
-  const progress = Math.min(1, Math.max(0, (now - startMs) / (endMs - startMs)));
+
+  // L'heure de départ configurée ne sert qu'au compte à rebours d'avant
+  // course : dès qu'un premier tour a réellement démarré, le chrono et la
+  // progression se calent sur ce départ réel.
+  const firstActualStartMs = useMemo(() => {
+    let min = Infinity;
+    for (const l of laps) if (l.actualStart_ts) min = Math.min(min, Date.parse(l.actualStart_ts));
+    return min;
+  }, [laps]);
+  const effectiveStartMs = Math.min(startMs, firstActualStartMs);
+  const progress = Math.min(1, Math.max(0, (now - effectiveStartMs) / (endMs - effectiveStartMs)));
 
   const currentRunner = current ? race.runners[current.runnerId] : null;
   const nextRunner = next ? race.runners[next.runnerId] : null;
 
   // Le tour suivant démarre automatiquement à arrivée + 20 s : tant que ce
   // départ est dans le futur, on est en transition (passage de la balise).
+  // Au-delà de 90 s, ce n'est plus une transition mais un départ programmé
+  // (ex: heure modifiée à la main) — affichage différent.
   const currentStartMs = current?.actualStart_ts ? Date.parse(current.actualStart_ts) : null;
-  const inTransition = currentStartMs !== null && now < currentStartMs;
+  const transitionLeftSec = currentStartMs !== null ? Math.ceil((currentStartMs - now) / 1000) : 0;
+  const inTransition = transitionLeftSec > 0;
+  const shortTransition = inTransition && transitionLeftSec <= 90;
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,10 +70,12 @@ export default function Dashboard() {
         </div>
         <div className="text-right">
           <div className="text-xs uppercase text-slate-400">
-            {now < startMs ? 'Départ dans' : 'Chrono course'}
+            {now < effectiveStartMs ? 'Départ dans' : 'Chrono course'}
           </div>
           <div className="text-xl font-semibold text-emerald-400 tnum">
-            {now < startMs ? fmtChrono((startMs - now) / 1000) : fmtChrono((now - startMs) / 1000)}
+            {now < effectiveStartMs
+              ? fmtChrono((effectiveStartMs - now) / 1000)
+              : fmtChrono((now - effectiveStartMs) / 1000)}
           </div>
         </div>
       </header>
@@ -89,7 +105,7 @@ export default function Dashboard() {
               : 'border-blue-500/50 bg-blue-500/10'
           }`}
         >
-          {inTransition ? (
+          {shortTransition ? (
             <>
               <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-amber-400">
                 <Timer className="h-4 w-4" /> Transition — passage de la balise
@@ -103,10 +119,29 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-5xl font-bold text-amber-400 tnum">
-                    {Math.ceil((currentStartMs! - now) / 1000)}
-                  </div>
+                  <div className="text-5xl font-bold text-amber-400 tnum">{transitionLeftSec}</div>
                   <div className="text-xs text-slate-400">secondes</div>
+                </div>
+              </div>
+            </>
+          ) : inTransition ? (
+            <>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase text-amber-400">
+                <Timer className="h-4 w-4" /> Départ programmé — tour #{current.lapNumber}
+              </div>
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <div className="text-3xl font-bold">{currentRunner.name}</div>
+                  <div className="text-sm text-slate-300">
+                    part à {fmtDayTime(current.actualStart_ts!)} — heure modifiable dans la
+                    Timeline
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-amber-400 tnum">
+                    {fmtChrono(transitionLeftSec)}
+                  </div>
+                  <div className="text-xs text-slate-400">compte à rebours</div>
                 </div>
               </div>
             </>
