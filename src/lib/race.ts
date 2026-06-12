@@ -391,16 +391,40 @@ export function applyLapSwap(state: RaceState, lapA: number, lapB: number): Race
 }
 
 /**
- * Annule la dernière arrivée (clic sur « Terminer » par erreur) : le tour
- * terminé le plus récent redevient « en course » (son départ réel est
- * conservé) et le tour auto-démarré qui le suivait redevient à venir.
+ * Annule la dernière arrivée (clic sur « Terminer » par erreur), y compris
+ * un run validé en plusieurs tours : toute la chaîne de segments (tours
+ * consécutifs du même coureur enchaînés sans transition, créés par le
+ * découpage multi-tours) est défaite d'un coup. Le premier segment redevient
+ * « en course » avec son départ réel d'origine, les segments insérés sont
+ * retirés et les coureurs suivants reprennent leur place initiale.
  */
 export function applyUndoFinish(state: RaceState): RaceState {
   const all = sortedLaps(state);
   const lastDone = [...all].reverse().find((l) => l.status === 'done');
   if (!lastDone) return state;
 
+  // Chaîne du run : on remonte tant que le tour précédent est du même
+  // coureur et se termine exactement au départ du suivant (0 s d'écart,
+  // signature du découpage multi-tours — une vraie passation a +20 s).
+  const chain: Lap[] = [lastDone];
+  while (true) {
+    const prev = state.laps[lapKey(chain[0].lapNumber - 1)];
+    if (
+      prev &&
+      prev.status === 'done' &&
+      prev.runnerId === lastDone.runnerId &&
+      prev.actualEnd_ts === chain[0].actualStart_ts
+    ) {
+      chain.unshift(prev);
+    } else {
+      break;
+    }
+  }
+  const head = chain[0];
+  const extraSegments = chain.length - 1;
+
   const laps = { ...state.laps };
+  // Le tour auto-démarré après l'arrivée annulée redevient à venir.
   for (const lap of all) {
     if (lap.status === 'running' && lap.lapNumber > lastDone.lapNumber) {
       laps[lap.id] = {
@@ -412,12 +436,39 @@ export function applyUndoFinish(state: RaceState): RaceState {
       };
     }
   }
-  laps[lastDone.id] = {
-    ...lastDone,
+  // Les segments insérés redeviennent à venir, le premier reprend la course.
+  for (const seg of chain.slice(1)) {
+    laps[seg.id] = {
+      ...seg,
+      status: 'pending',
+      actualStart_ts: null,
+      actualEnd_ts: null,
+      actualDuration_sec: null,
+    };
+  }
+  laps[head.id] = {
+    ...head,
     status: 'running',
     actualEnd_ts: null,
     actualDuration_sec: null,
   };
+
+  // Dé-décalage : les coureurs suivants remontent d'autant de crans que de
+  // segments insérés ; la fin du planning sera régénérée par la rotation.
+  if (extraSegments > 0) {
+    const pendings = Object.values(laps)
+      .filter((l) => l.status === 'pending' && l.lapNumber > head.lapNumber)
+      .sort((a, b) => a.lapNumber - b.lapNumber);
+    for (let i = 0; i < pendings.length; i++) {
+      const source = pendings[i + extraSegments];
+      if (source) {
+        laps[pendings[i].id] = { ...laps[pendings[i].id], runnerId: source.runnerId };
+      } else {
+        delete laps[pendings[i].id];
+      }
+    }
+  }
+
   return recalcSchedule({ ...state, laps }, Date.now());
 }
 
