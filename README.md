@@ -1,153 +1,158 @@
 # GVA24 — Gestion de relais 24h
 
 Application web collaborative temps-réel pour gérer les relais de la course de
-24h (samedi 14 juin 2026 12h30 → dimanche 15 juin 2026 12h00, boucle de 7 km,
-9 coureurs en rotation). Mobile-first, multi-utilisateurs, synchronisée en
-direct via Firebase Realtime Database.
+24h (14 juin 2026 12h30 → 15 juin 2026 12h00, boucle de 7 km, 9 coureurs en
+rotation). Mobile-first, multi-utilisateurs, auto-hébergée : un seul conteneur
+Docker, base de données locale (fichiers JSON), temps réel via Server-Sent
+Events. **Aucun service externe.**
 
-## Démarrage rapide (5 minutes le matin de la course)
-
-Prérequis : Node.js ≥ 20 et un projet Firebase (gratuit, plan Spark).
+## Démarrage avec Docker (recommandé)
 
 ```bash
-# 1. Installer les dépendances
-npm install
-
-# 2. Configurer Firebase
-cp .env.example .env
-#    → remplir .env avec les valeurs de la console Firebase
-#      (console.firebase.google.com → votre projet → Paramètres → Vos applications → SDK)
-#    → dans Realtime Database > Règles, coller le contenu de database.rules.json
-
-# 3. Créer la course dans la base (9 coureurs + planning complet)
-npm run seed -- 2424        # 2424 = code PIN à partager à l'équipe
-
-# 4. Lancer en local
-npm run dev                 # http://localhost:5173
-
-# 5. Déployer sur Vercel (2 minutes)
-npm i -g vercel
-vercel --prod
-#    → dans le dashboard Vercel, ajouter les 5 variables VITE_FIREBASE_*
-#      (Settings > Environment Variables), puis redéployer si besoin.
+docker compose up -d --build
 ```
 
-Chaque membre de l'équipe ouvre l'URL sur son téléphone et entre le code
-**2424**. Le code est mémorisé sur l'appareil (reconnexion automatique).
+C'est tout : au premier démarrage le serveur crée automatiquement la course
+(code **2424**, 9 coureurs, planning complet) et la sert sur le port **8787**.
+La base de données vit dans `./data/race-2424.json` (volume), elle survit aux
+redémarrages et mises à jour du conteneur.
 
-### Créer le projet Firebase (une seule fois, ~3 min)
+Vérification : `curl http://localhost:8787/api/race/2424` ou ouvrir
+<http://localhost:8787> et entrer le code 2424.
 
-1. <https://console.firebase.google.com> → *Ajouter un projet* (Analytics inutile).
-2. *Créer une application Web* (`</>`), copier la config dans `.env`.
-3. *Realtime Database* → *Créer une base* (mode verrouillé), puis onglet
-   *Règles* → coller `database.rules.json` → *Publier*. Seul le chemin
-   `races/<PIN>` est lisible/écrivable : le PIN fait office de code d'accès.
+Variables d'environnement (dans `docker-compose.yml`) :
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `RACE_PIN` | `2424` | code de la course créée au premier démarrage |
+| `PORT` | `8787` | port d'écoute |
+| `DATA_DIR` | `/data` | dossier de la base de données |
+
+Remise à zéro complète : bouton *Administration → Réinitialiser* dans l'app
+(avec sauvegarde restaurable), ou `npm run seed -- 2424` (réécrit la course),
+ou supprimer `./data/race-2424.json` et redémarrer le conteneur.
+
+## Reverse proxy — Nginx Proxy Manager
+
+Dans NPM, *Hosts → Proxy Hosts → Add Proxy Host* :
+
+| Champ | Valeur |
+|---|---|
+| **Domain Names** | `gva24.mondomaine.tld` (votre sous-domaine) |
+| **Scheme** | `http` |
+| **Forward Hostname / IP** | IP de la machine Docker (ex: `192.168.1.10`) — ou `gva24` si NPM est sur le même réseau Docker |
+| **Forward Port** | `8787` |
+| **Cache Assets** | désactivé |
+| **Block Common Exploits** | activé |
+| **Websockets Support** | **activé** (nécessaire au flux temps réel) |
+
+Onglet *SSL* : certificat Let's Encrypt + *Force SSL* si le domaine est exposé.
+
+Notes :
+- le temps réel utilise SSE (EventSource) ; le serveur envoie l'en-tête
+  `X-Accel-Buffering: no` et un heartbeat toutes les 25 s, donc aucune
+  configuration nginx supplémentaire n'est requise ;
+- si NPM tourne aussi en Docker sur la même machine, le plus simple est de
+  mettre les deux sur un réseau commun :
+  `docker network connect <réseau_de_npm> gva24`, puis Forward Hostname =
+  `gva24`.
+
+## Développement local (sans Docker)
+
+```bash
+npm install
+npm run dev:server    # backend sur :8787 (crée la course au 1er lancement)
+npm run dev           # front Vite sur :5173 (proxy /api → :8787)
+```
+
+En production sans Docker : `npm run build && npm start`.
 
 ## Les 4 écrans
 
 | Route | Écran | Usage |
 |---|---|---|
-| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live), suivant (compte à rebours), 8 prochains passages, progression, tours/km cumulés, administration (reset/restore) |
-| `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, **saisie inline** des temps réels (corrections) |
+| `/` | **Dashboard** | Horloge + chrono course, coureur en cours (timer live ou décompte de transition), suivant, 8 prochains passages, progression, administration (reset/restore) |
+| `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, saisie inline des temps réels |
 | `/runners` | **Coureurs** | Fiche par coureur : allure base vs réelle, historique des tours, modification de l'allure de base |
-| `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros boutons **JE PARS** / **J'ARRIVE**, saisie manuelle en cas d'oubli |
+| `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros bouton **J'ARRIVE**, décompte de transition, saisie manuelle |
 
 Codes couleur timeline : gris = à venir, bleu = en course, vert = terminé dans
 les temps (±1 min), orange = en retard (> +1 min), rouge = en avance (> −1 min).
 
-## Le recalcul en cascade (algorithme)
+## Architecture
 
-Implémenté dans [`src/lib/race.ts`](src/lib/race.ts) (`recalcSchedule`), pur et
-déterministe : tout le planning est reconstruit à partir de la config, des
-temps réels saisis et des allures recalculées.
+```
+téléphones (React SPA)
+   │  GET /api/race/2424            état complet au chargement
+   │  GET /api/race/2424/events     SSE : état rediffusé à chaque changement
+   │  POST /api/race/2424/action    {type: start|finish|edit|basePace|reset|restore}
+   ▼
+serveur Node (dist-server/index.mjs, zéro dépendance runtime)
+   │  applique l'action pure + recalcul en cascade (src/lib/race.ts,
+   │  code partagé avec le front), en série → pas de conflit d'écriture
+   ▼
+base de données locale : data/race-2424.json (écriture atomique tmp+rename)
+```
+
+### Le recalcul en cascade (`src/lib/race.ts`)
 
 1. **Allure réelle** de chaque coureur = moyenne pondérée des allures de ses
-   tours terminés, les tours récents pesant plus lourd (poids 1, 2, 3, …) pour
-   suivre la fatigue. Sans tour terminé : allure de base.
-2. **Parcours chronologique** des tours avec un curseur temporel initialisé au
-   départ de la course (12h30) :
-   - tour **terminé** : prédictions figées (la colonne « écart » reste
-     comparable), le curseur saute à `actualEnd` ;
+   tours terminés, les tours récents pesant plus lourd (poids 1, 2, 3, …).
+   Sans tour terminé : allure de base.
+2. **Parcours chronologique** des tours avec un curseur temporel :
+   - tour **terminé** : prédictions figées, le curseur saute à `actualEnd` ;
    - tour **en cours** : le curseur saute à la projection
-     `actualStart + allure_actuelle × 7 km`, bornée à « maintenant » si le
-     coureur est en retard sur sa projection ;
-   - tour **à venir** : `predictedStart = curseur`,
-     `predictedEnd = start + allure_actuelle × 7 km` — entièrement recalculé.
+     `actualStart + allure_actuelle × 7 km`, bornée à « maintenant » ;
+   - tour **à venir** : `predictedStart = curseur`, durée à l'allure actuelle ;
    - après chaque tour, le curseur avance de la transition (20 s).
-3. **Fin de course** : on génère des tours tant que `predictedStart < 12h00`.
-   Le dernier tour parti avant 12h00 est inclus même s'il finit après. Si
-   l'équipe accélère, des tours apparaissent en fin de planning ; si elle
-   ralentit, ils disparaissent.
+3. **Fin de course** : on génère des tours tant que `predictedStart < 12h00` ;
+   le planning s'allonge ou se raccourcit selon le rythme réel de l'équipe.
 
-Ainsi, terminer un tour (saisie de `actualEnd`) met à jour l'allure du coureur,
-**tous ses tours futurs**, et **en cascade tous les horaires** des tours
-suivants de toute l'équipe.
+### Règles de terrain
 
-### Concurrence multi-téléphones
-
-Chaque mutation (départ, arrivée, correction, changement d'allure) est une
-**transaction Firebase** (`runTransaction`) sur le nœud `races/<PIN>` : action
-pure + recalcul appliqués sur la dernière valeur serveur, écrits atomiquement.
-Deux téléphones qui pointent simultanément ne peuvent pas s'écraser.
-
-Règles de terrain encodées dans la logique :
-
-- **enchaînement automatique** : quand un tour est terminé (« Terminer » /
-  **J'ARRIVE** / saisie manuelle de l'arrivée), un compte à rebours de 20 s
-  démarre (passage de la balise) puis le tour suivant démarre tout seul
-  (départ réel = arrivée + 20 s). Le bouton « Démarrer » ne sert qu'au départ
-  de la course à 12h30 (ou pour relancer après un trou) ;
-- un seul tour « en course » à la fois : si quelqu'un force **JE PARS**
-  alors que le tour précédent n'est pas clos, celui-ci est clôturé
-  automatiquement (arrivée = nouveau départ − 20 s) ;
-- **J'ARRIVE** sans départ enregistré : le départ prévu sert de départ réel ;
-- tout est corrigeable a posteriori dans la Timeline (saisie inline, heure de
-  Paris, champ vide + OK pour effacer).
+- **enchaînement automatique** : terminer un tour (« Terminer », **J'ARRIVE**
+  ou saisie manuelle de l'arrivée) lance le décompte de 20 s (passage de la
+  balise) puis le tour suivant démarre tout seul (départ réel = arrivée + 20 s).
+  « Démarrer » ne sert qu'au départ de la course ;
+- les départs réels étant dérivés du passage de balise, **corriger une
+  arrivée dans la Timeline corrige aussi le départ réel du tour suivant**
+  (+20 s) et recalcule sa durée s'il est terminé ;
+- un seul tour « en course » à la fois ; **J'ARRIVE** sans départ enregistré
+  retombe sur le départ prévu ;
+- tout est corrigeable a posteriori dans la Timeline (heure de Paris, champ
+  vide + OK pour effacer).
 
 ### Reset / restore (Dashboard → Administration)
 
-- **Réinitialiser la course** : efface tous les temps réels, remet les allures
-  de base et régénère le planning — l'état courant est d'abord sauvegardé dans
-  `races/<PIN>/backup` ;
-- **Restaurer la dernière session** : remet la course dans l'état sauvegardé
-  lors du dernier reset (utile après un reset accidentel ou des essais de la
-  veille).
+- **Réinitialiser la course** : efface les temps réels, remet les allures de
+  base, régénère le planning — l'état courant est d'abord sauvegardé ;
+- **Restaurer la dernière session** : remet la course dans l'état d'avant le
+  dernier reset (essais de la veille, fausse manip…).
 
-## Données & conventions techniques
+## Données & conventions
 
-- Durées en **secondes entières**, timestamps en **ISO 8601 UTC** ; affichage
-  converti en heure de Paris (`Intl.DateTimeFormat`, gère l'heure d'été).
-- Le timer du dashboard est un `setInterval` local d'une seconde — aucun
-  polling réseau, le temps réel vient des websockets Firebase.
-- Hors ligne : bandeau « Hors ligne — données locales » (`.info/connected`),
-  les données restent affichées depuis le cache et se resynchronisent au
-  retour du réseau ; toast rouge si une écriture échoue.
-- Structure de la base :
-
-```
-races/<PIN>/
-  config/        startTime, endTime, loopDistance_km, transitionTime_sec, runnerOrder[]
-  runners/<id>/  name, basePace_secPerKm, currentPace_secPerKm
-  laps/lapNNN/   runnerId, lapNumber, runnerLapNumber, status,
-                 predictedStart_ts, predictedEnd_ts,
-                 actualStart_ts, actualEnd_ts, actualDuration_sec
-```
+- Durées en secondes entières, timestamps ISO 8601 UTC ; affichage en heure
+  de Paris (`Intl.DateTimeFormat`, gère l'heure d'été) ;
+- timers du dashboard : `setInterval` local d'une seconde, aucun polling
+  réseau — le temps réel vient du flux SSE ;
+- hors ligne : bandeau « Hors ligne — données locales », l'`EventSource` se
+  reconnecte automatiquement, toast rouge si une écriture échoue.
 
 ## Arborescence
 
 ```
-├── scripts/seed.mjs            # initialisation de la course dans Firebase
-├── database.rules.json         # règles de sécurité RTDB
-├── vercel.json                 # rewrite SPA
+├── Dockerfile / docker-compose.yml / .dockerignore
+├── server/index.ts             # HTTP + SSE + persistance JSON + statique
+├── scripts/seed.mjs            # re-crée la course via l'API (npm run seed)
 └── src/
     ├── lib/
     │   ├── types.ts            # modèle de données
-    │   ├── race.ts             # ★ logique métier : cascade, allures, actions
+    │   ├── race.ts             # ★ logique métier partagée front/serveur
+    │   ├── seedData.ts         # course initiale (9 coureurs, allures)
     │   ├── time.ts             # fuseaux, formats, parsing d'heures
-    │   ├── firebase.ts         # init SDK
     │   └── useNow.ts           # horloge 1 s
-    ├── store/raceStore.ts      # Zustand + transactions Firebase + statut réseau
-    ├── components/             # Layout (nav + bandeaux), JoinGate (PIN), TimeEdit
+    ├── store/raceStore.ts      # Zustand + fetch/EventSource + statut réseau
+    ├── components/             # Layout, JoinGate (PIN), TimeEdit
     └── pages/                  # Dashboard, Timeline, Runners, RunnerDetail, QuickEntry
 ```
 
@@ -155,9 +160,8 @@ races/<PIN>/
 
 | Commande | Effet |
 |---|---|
-| `npm install` | installe les dépendances |
-| `npm run seed -- <PIN>` | (re)crée la course sous `races/<PIN>` — écrase l'existant |
-| `npm run dev` | serveur de dev <http://localhost:5173> |
-| `npm run build` | vérification TypeScript + build de production dans `dist/` |
-| `npm run preview` | sert le build localement |
-| `vercel --prod` | déploiement production Vercel |
+| `docker compose up -d --build` | build + lance le conteneur (app prête sur :8787) |
+| `npm run seed -- <PIN>` | (re)crée la course sous ce code — écrase l'existant |
+| `npm run dev` / `npm run dev:server` | développement front / backend |
+| `npm run build` | typecheck + build client (`dist/`) + serveur (`dist-server/`) |
+| `npm start` | lance le serveur de production en local |

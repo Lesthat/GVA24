@@ -1,14 +1,4 @@
 import { create } from 'zustand';
-import { get as dbGet, onValue, ref, runTransaction, type Unsubscribe } from 'firebase/database';
-import { db } from '../lib/firebase';
-import {
-  applyBasePace,
-  applyEdit,
-  applyFinish,
-  applyReset,
-  applyRestore,
-  applyStart,
-} from '../lib/race';
 import type { RaceState } from '../lib/types';
 
 const PIN_STORAGE_KEY = 'gva24_pin';
@@ -30,32 +20,24 @@ interface RaceStore {
   clearError: () => void;
 }
 
-let unsubRace: Unsubscribe | null = null;
-let unsubConn: Unsubscribe | null = null;
-
-/** Firebase supprime les clés à valeur null : on restaure les conteneurs. */
-function normalize(raw: RaceState): RaceState {
-  return { ...raw, laps: raw.laps ?? {}, runners: raw.runners ?? {} };
-}
+let eventSource: EventSource | null = null;
 
 export const useRaceStore = create<RaceStore>((set, get) => {
   /**
-   * Toute mutation passe par une transaction Firebase : l'action pure + le
-   * recalcul en cascade sont appliqués sur la dernière valeur connue du
-   * serveur, puis écrits atomiquement. Deux téléphones qui pointent en même
-   * temps ne peuvent pas s'écraser mutuellement.
+   * Toute mutation est envoyée au serveur, qui l'applique en série sur le
+   * dernier état (logique pure + recalcul en cascade), persiste dans le
+   * fichier JSON et rediffuse l'état à tous les téléphones via SSE.
    */
-  async function mutate(fn: (s: RaceState) => RaceState): Promise<void> {
+  async function mutate(body: Record<string, unknown>): Promise<void> {
     const pin = get().pin;
     if (!pin) return;
     try {
-      const result = await runTransaction(ref(db, `races/${pin}`), (raw: RaceState | null) => {
-        if (!raw) return undefined; // cache pas encore chargé → abandon
-        return fn(normalize(raw));
+      const res = await fetch(`/api/race/${pin}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
-      if (!result.committed) {
-        set({ error: 'Écriture impossible — vérifiez la connexion et réessayez.' });
-      }
+      if (!res.ok) throw new Error(String(res.status));
     } catch {
       set({ error: 'Erreur réseau — la modification n’a pas été enregistrée.' });
     }
@@ -71,53 +53,53 @@ export const useRaceStore = create<RaceStore>((set, get) => {
     async join(pin: string): Promise<string | null> {
       if (!/^\d{4}$/.test(pin)) return 'Le code de course doit comporter 4 chiffres.';
       set({ joining: true });
+      let race: RaceState;
       try {
-        const snap = await dbGet(ref(db, `races/${pin}/config/startTime`));
-        if (!snap.exists()) {
+        const res = await fetch(`/api/race/${pin}`);
+        if (res.status === 404) {
           set({ joining: false });
           return 'Aucune course trouvée avec ce code.';
         }
+        if (!res.ok) throw new Error(String(res.status));
+        race = (await res.json()) as RaceState;
       } catch {
         set({ joining: false });
-        return 'Connexion à Firebase impossible. Vérifiez le réseau.';
+        return 'Connexion au serveur impossible. Vérifiez le réseau.';
       }
 
       localStorage.setItem(PIN_STORAGE_KEY, pin);
-      unsubRace?.();
-      unsubRace = onValue(ref(db, `races/${pin}`), (snap) => {
-        const raw = snap.val() as RaceState | null;
-        set({ race: raw ? normalize(raw) : null });
-      });
-      unsubConn?.();
-      unsubConn = onValue(ref(db, '.info/connected'), (snap) => {
-        set({ connected: snap.val() === true });
-      });
-      set({ pin, joining: false });
+      eventSource?.close();
+      // EventSource se reconnecte tout seul après une coupure réseau.
+      eventSource = new EventSource(`/api/race/${pin}/events`);
+      eventSource.onmessage = (e) => {
+        set({ race: JSON.parse(e.data) as RaceState, connected: true });
+      };
+      eventSource.onopen = () => set({ connected: true });
+      eventSource.onerror = () => set({ connected: false });
+
+      set({ pin, race, joining: false, connected: true });
       return null;
     },
 
     leave() {
-      unsubRace?.();
-      unsubConn?.();
-      unsubRace = null;
-      unsubConn = null;
+      eventSource?.close();
+      eventSource = null;
       localStorage.removeItem(PIN_STORAGE_KEY);
       set({ pin: null, race: null });
     },
 
-    startLap: (lapNumber, tsIso) =>
-      mutate((s) => applyStart(s, lapNumber, tsIso ?? new Date().toISOString())),
+    startLap: (lapNumber, tsIso) => mutate({ type: 'start', lapNumber, tsIso: tsIso ?? null }),
 
-    finishLap: (lapNumber, tsIso) =>
-      mutate((s) => applyFinish(s, lapNumber, tsIso ?? new Date().toISOString())),
+    finishLap: (lapNumber, tsIso) => mutate({ type: 'finish', lapNumber, tsIso: tsIso ?? null }),
 
-    editLap: (lapNumber, patch) => mutate((s) => applyEdit(s, lapNumber, patch)),
+    editLap: (lapNumber, patch) => mutate({ type: 'edit', lapNumber, patch }),
 
-    setBasePace: (runnerId, paceSecPerKm) => mutate((s) => applyBasePace(s, runnerId, paceSecPerKm)),
+    setBasePace: (runnerId, paceSecPerKm) =>
+      mutate({ type: 'basePace', runnerId, pace: paceSecPerKm }),
 
-    resetRace: () => mutate((s) => applyReset(s, new Date().toISOString())),
+    resetRace: () => mutate({ type: 'reset' }),
 
-    restoreBackup: () => mutate((s) => applyRestore(s)),
+    restoreBackup: () => mutate({ type: 'restore' }),
 
     clearError: () => set({ error: null }),
   };

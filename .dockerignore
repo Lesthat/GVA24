@@ -2,8 +2,8 @@ node_modules
 dist
 dist-server
 data
+.git
 .env
-.env.local
 *.log
-.DS_Store
 *.tsbuildinfo
+README.md

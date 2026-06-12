@@ -236,6 +236,28 @@ export function applyEdit(
       actualDuration_sec: duration,
     },
   };
+
+  // Le départ réel du tour suivant est dérivé du passage de balise
+  // (arrivée + 20 s) : corriger une arrivée corrige donc aussi le départ
+  // réel du tour suivant déjà démarré — et sa durée s'il est terminé.
+  if (endIso) {
+    const nextKey = lapKey(lapNumber + 1);
+    const next = laps[nextKey];
+    if (next && next.status !== 'pending' && next.actualStart_ts) {
+      const newStartMs = Date.parse(endIso) + state.config.transitionTime_sec * 1000;
+      const validVsEnd = !next.actualEnd_ts || newStartMs < Date.parse(next.actualEnd_ts);
+      if (validVsEnd) {
+        laps[nextKey] = {
+          ...next,
+          actualStart_ts: new Date(newStartMs).toISOString(),
+          actualDuration_sec: next.actualEnd_ts
+            ? Math.round((Date.parse(next.actualEnd_ts) - newStartMs) / 1000)
+            : null,
+        };
+      }
+    }
+  }
+
   const result = recalcSchedule({ ...state, laps }, Date.now());
   // Saisie manuelle de l'arrivée du tour en cours : on relance la boucle
   // comme le ferait le bouton "Terminer".

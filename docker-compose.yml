@@ -1,0 +1,11 @@
+services:
+  gva24:
+    build: .
+    container_name: gva24
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./data:/data # la base de données (fichiers JSON) survit aux redémarrages
+    environment:
+      - RACE_PIN=2424 # code de la course créée automatiquement au premier démarrage
