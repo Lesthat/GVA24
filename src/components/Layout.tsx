@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Gauge, ListOrdered, Users, Zap, WifiOff, X } from 'lucide-react';
+import { Gauge, ListOrdered, LogOut, Users, Zap, WifiOff, X } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 
 const tabs = [
@@ -15,6 +15,8 @@ export function Layout() {
   const error = useRaceStore((s) => s.error);
   const clearError = useRaceStore((s) => s.clearError);
   const race = useRaceStore((s) => s.race);
+  const pin = useRaceStore((s) => s.pin);
+  const leave = useRaceStore((s) => s.leave);
 
   // Les toasts d'erreur disparaissent seuls après 5 s.
   useEffect(() => {
@@ -25,6 +27,23 @@ export function Layout() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col">
+      {/* Le code de course est affiché en permanence : tout le monde doit
+          voir le même code pour partager la même session. */}
+      <header className="flex items-center justify-between border-b border-slate-800 px-4 py-2 text-sm">
+        <span className="font-bold">
+          GVA24 <span className="font-normal text-slate-400">· course {pin}</span>
+        </span>
+        <button
+          onClick={() => {
+            if (window.confirm(`Quitter la course ${pin} ? (les données restent sur le serveur)`))
+              leave();
+          }}
+          className="flex items-center gap-1 text-slate-400"
+        >
+          <LogOut className="h-4 w-4" /> Changer
+        </button>
+      </header>
+
       {!connected && (
         <div className="flex items-center justify-center gap-2 bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950">
           <WifiOff className="h-4 w-4" />
