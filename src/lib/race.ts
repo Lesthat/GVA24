@@ -137,7 +137,7 @@ export function recalcSchedule(state: RaceState, nowMs?: number): RaceState {
 }
 
 /* ------------------------------------------------------------------ */
-/* Actions pures, appliquées à l'intérieur d'une transaction Firebase. */
+/* Actions pures, appliquées en série par le serveur sur le dernier état. */
 /* ------------------------------------------------------------------ */
 
 /**
