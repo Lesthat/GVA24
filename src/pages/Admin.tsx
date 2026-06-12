@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { History, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, History, RotateCcw } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { fmtDayTime, isoToParisLocalInput, parisLocalInputToIso } from '../lib/time';
 
@@ -7,6 +7,15 @@ export default function Admin() {
   const race = useRaceStore((s) => s.race)!;
   const resetRace = useRaceStore((s) => s.resetRace);
   const restoreBackup = useRaceStore((s) => s.restoreBackup);
+  const setOrder = useRaceStore((s) => s.setOrder);
+
+  function move(index: number, delta: -1 | 1) {
+    const order = [...race.config.runnerOrder];
+    const j = index + delta;
+    if (j < 0 || j >= order.length) return;
+    [order[index], order[j]] = [order[j], order[index]];
+    setOrder(order);
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -22,6 +31,45 @@ export default function Admin() {
           Avant le départ, ces horaires servent au compte à rebours. Le départ réel du premier
           coureur les recale automatiquement (la durée de course est conservée). Ils restent
           modifiables ici à tout moment — le planning est recalculé.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <div className="text-xs font-semibold uppercase text-slate-400">Ordre de rotation</div>
+        <ul className="mt-2 flex flex-col gap-1">
+          {race.config.runnerOrder.map((id, i) => (
+            <li
+              key={id}
+              className="flex items-center justify-between rounded-lg bg-slate-950 px-3 py-2"
+            >
+              <span className="font-semibold">
+                <span className="mr-2 text-slate-500">{i + 1}.</span>
+                {race.runners[id]?.name ?? id}
+              </span>
+              <span className="flex gap-1">
+                <button
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  aria-label="monter"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 disabled:opacity-30"
+                >
+                  <ChevronUp className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => move(i, 1)}
+                  disabled={i === race.config.runnerOrder.length - 1}
+                  aria-label="descendre"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 disabled:opacity-30"
+                >
+                  <ChevronDown className="h-5 w-5" />
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-slate-500">
+          Modifier l'ordre réattribue tous les tours à venir, en continuant après le coureur en
+          piste. Les tours déjà courus ne changent pas.
         </p>
       </section>
 

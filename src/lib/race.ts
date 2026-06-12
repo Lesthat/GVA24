@@ -72,20 +72,30 @@ export function recalcSchedule(state: RaceState, nowMs?: number): RaceState {
   }
 
   const laps: Record<string, Lap> = {};
-  const perRunnerCount: Record<string, number> = {};
+  const counts: Record<string, number> = {};
+  let lastRunnerId: string | null = null;
   let cursorMs = Date.parse(config.startTime);
+
+  // La rotation ne sert qu'à générer la suite : chaque tour existant garde
+  // son coureur (attributions manuelles comprises).
+  const nextInRotation = (): string => {
+    const idx = lastRunnerId ? order.indexOf(lastRunnerId) : -1;
+    return order[(idx + 1) % order.length];
+  };
 
   for (let n = 1; n <= MAX_LAPS; n++) {
     const key = lapKey(n);
     const existing = oldLaps[key];
-    const runnerId = order[(n - 1) % order.length];
-    const runner = runners[runnerId];
-    perRunnerCount[runnerId] = (perRunnerCount[runnerId] ?? 0) + 1;
 
     if (existing && existing.status !== 'pending') {
-      // Tour démarré ou terminé : on le conserve tel quel (prédictions figées
-      // pour que la colonne "écart" reste comparable).
-      laps[key] = existing;
+      // Tour démarré ou terminé : conservé tel quel (prédictions figées) ;
+      // seul runnerLapNumber est retenu à jour si les attributions ont changé.
+      const count = (counts[existing.runnerId] ?? 0) + 1;
+      counts[existing.runnerId] = count;
+      laps[key] =
+        existing.runnerLapNumber === count ? existing : { ...existing, runnerLapNumber: count };
+      lastRunnerId = existing.runnerId;
+      const runner = runners[existing.runnerId];
       let lapEndMs: number;
       if (existing.status === 'done' && existing.actualEnd_ts) {
         lapEndMs = Date.parse(existing.actualEnd_ts);
@@ -100,12 +110,17 @@ export function recalcSchedule(state: RaceState, nowMs?: number): RaceState {
 
     // Tour à venir : recalculé depuis le curseur.
     if (cursorMs >= endMs) break; // la course se termine avant ce départ
+    const runnerId =
+      existing && runners[existing.runnerId] ? existing.runnerId : nextInRotation();
+    const runner = runners[runnerId];
+    const count = (counts[runnerId] ?? 0) + 1;
+    counts[runnerId] = count;
     const durMs = lapDurationSec(runner.currentPace_secPerKm, distKm) * 1000;
     laps[key] = {
       id: key,
       runnerId,
       lapNumber: n,
-      runnerLapNumber: perRunnerCount[runnerId],
+      runnerLapNumber: count,
       status: 'pending',
       predictedStart_ts: new Date(cursorMs).toISOString(),
       predictedEnd_ts: new Date(cursorMs + durMs).toISOString(),
@@ -113,6 +128,7 @@ export function recalcSchedule(state: RaceState, nowMs?: number): RaceState {
       actualEnd_ts: null,
       actualDuration_sec: null,
     };
+    lastRunnerId = runnerId;
     cursorMs = cursorMs + durMs + transMs;
   }
 
@@ -201,29 +217,91 @@ function autoStartNext(state: RaceState, afterLapNumber: number, endIso: string)
   return recalcSchedule({ ...state, laps }, Date.parse(endIso));
 }
 
-/** Termine un tour : durée réelle, statut "done", cascade, puis le tour suivant démarre automatiquement (transition 20 s). */
-export function applyFinish(state: RaceState, lapNumber: number, tsIso: string): RaceState {
+/**
+ * Termine un run : statut "done", cascade, puis le tour suivant démarre
+ * automatiquement (transition 20 s).
+ *
+ * `loops` = nombre de boucles effectuées dans ce run (déclaré à la
+ * validation, défaut 1). Pour N > 1, le run est découpé en N tours de durée
+ * égale enchaînés sans transition (le coureur ne s'arrête pas entre ses
+ * boucles) : le coureur s'insère sur les tours suivants et les coureurs
+ * prévus glissent d'un cran — personne ne saute son tour.
+ */
+export function applyFinish(
+  state: RaceState,
+  lapNumber: number,
+  tsIso: string,
+  loops = 1,
+): RaceState {
+  if (!Number.isInteger(loops) || loops < 1 || loops > 6) return state;
   const key = lapKey(lapNumber);
   const target = state.laps[key];
   if (!target) return state;
 
   // "J'ARRIVE" sans "JE PARS" : on retombe sur le départ prévu.
   const startIso = target.actualStart_ts ?? target.predictedStart_ts;
-  const duration = Math.round((Date.parse(tsIso) - Date.parse(startIso)) / 1000);
-  if (duration <= 0) return state;
+  const startMs = Date.parse(startIso);
+  const endMs = Date.parse(tsIso);
+  const totalMs = endMs - startMs;
+  if (totalMs <= 0) return state;
 
-  const laps = {
-    ...state.laps,
-    [key]: {
-      ...target,
-      status: 'done' as const,
-      actualStart_ts: startIso,
-      actualEnd_ts: tsIso,
-      actualDuration_sec: duration,
-    },
+  // Sécurité : on ne découpe que sur des tours encore à venir.
+  let effLoops = loops;
+  for (let k = 1; k < loops; k++) {
+    const seg = state.laps[lapKey(lapNumber + k)];
+    if (seg && seg.status !== 'pending') {
+      effLoops = k;
+      break;
+    }
+  }
+
+  // Bornes proportionnelles : N segments de durée (quasi) égale.
+  const boundary = (k: number) => startMs + Math.round((totalMs * k) / effLoops);
+  const iso = (ms: number) => new Date(ms).toISOString();
+
+  const laps = { ...state.laps };
+  laps[key] = {
+    ...target,
+    status: 'done',
+    actualStart_ts: startIso,
+    actualEnd_ts: iso(boundary(1)),
+    actualDuration_sec: Math.round((boundary(1) - startMs) / 1000),
   };
-  const closed = recalcSchedule({ ...state, laps }, Date.parse(tsIso));
-  return autoStartNext(closed, lapNumber, tsIso);
+
+  if (effLoops > 1) {
+    const followers = sortedLaps(state).filter(
+      (l) => l.status === 'pending' && l.lapNumber > lapNumber,
+    );
+
+    // Boucles supplémentaires du même coureur (créées si le planning est trop court).
+    for (let k = 1; k < effLoops; k++) {
+      const segKey = lapKey(lapNumber + k);
+      const existing = state.laps[segKey];
+      const segStartMs = boundary(k);
+      const segEndMs = boundary(k + 1);
+      laps[segKey] = {
+        id: segKey,
+        lapNumber: lapNumber + k,
+        runnerLapNumber: 0, // recompté par la cascade
+        predictedStart_ts: existing?.predictedStart_ts ?? iso(segStartMs),
+        predictedEnd_ts: existing?.predictedEnd_ts ?? iso(segEndMs),
+        runnerId: target.runnerId,
+        status: 'done',
+        actualStart_ts: iso(segStartMs),
+        actualEnd_ts: iso(segEndMs),
+        actualDuration_sec: Math.round((segEndMs - segStartMs) / 1000),
+      };
+    }
+
+    // Les coureurs prévus glissent de (effLoops − 1) crans.
+    const consumed = effLoops - 1;
+    followers.slice(consumed).forEach((lap, i) => {
+      laps[lap.id] = { ...lap, runnerId: followers[i].runnerId };
+    });
+  }
+
+  const closed = recalcSchedule({ ...state, laps }, endMs);
+  return autoStartNext(closed, lapNumber + effLoops - 1, tsIso);
 }
 
 /**
@@ -341,6 +419,70 @@ export function applyRestore(state: RaceState): RaceState {
     { ...state, runners: state.backup.runners, laps: state.backup.laps ?? {} },
     Date.now(),
   );
+}
+
+/**
+ * Modifie l'ordre de rotation. Tous les tours à venir sont réattribués selon
+ * le nouvel ordre, en continuant après le coureur du dernier tour démarré.
+ * Les tours courus/en cours ne changent pas.
+ */
+export function applyOrder(state: RaceState, newOrder: string[]): RaceState {
+  const current = state.config.runnerOrder;
+  if (
+    newOrder.length !== current.length ||
+    [...newOrder].sort().join('|') !== [...current].sort().join('|')
+  )
+    return state;
+
+  const laps = { ...state.laps };
+  let lastRunnerId: string | null = null;
+  for (const lap of sortedLaps(state)) {
+    if (lap.status !== 'pending') {
+      lastRunnerId = lap.runnerId;
+      continue;
+    }
+    const idx: number = lastRunnerId ? newOrder.indexOf(lastRunnerId) : -1;
+    const runnerId: string = newOrder[(idx + 1) % newOrder.length];
+    laps[lap.id] = { ...lap, runnerId };
+    lastRunnerId = runnerId;
+  }
+  return recalcSchedule(
+    { ...state, config: { ...state.config, runnerOrder: newOrder }, laps },
+    Date.now(),
+  );
+}
+
+/**
+ * Change le coureur d'un tour.
+ * - insert=false : il remplace simplement le coureur prévu sur ce tour
+ *   (fonctionne aussi pour corriger un tour en cours ou terminé) ;
+ * - insert=true (tour à venir uniquement) : il s'insère, et les coureurs des
+ *   tours suivants glissent tous d'un cran — personne ne saute son tour.
+ *   C'est ainsi qu'un coureur peut enchaîner plusieurs tours.
+ */
+export function applyLapRunner(
+  state: RaceState,
+  lapNumber: number,
+  runnerId: string,
+  insert: boolean,
+): RaceState {
+  if (!state.runners[runnerId]) return state;
+  const target = state.laps[lapKey(lapNumber)];
+  if (!target) return state;
+
+  const laps = { ...state.laps };
+  if (insert && target.status === 'pending') {
+    let carry = runnerId;
+    for (const lap of sortedLaps(state)) {
+      if (lap.status !== 'pending' || lap.lapNumber < lapNumber) continue;
+      const previous = lap.runnerId;
+      laps[lap.id] = { ...lap, runnerId: carry };
+      carry = previous;
+    }
+  } else {
+    laps[target.id] = { ...target, runnerId };
+  }
+  return recalcSchedule({ ...state, laps }, Date.now());
 }
 
 /* ------------------------------ Sélecteurs ------------------------------ */

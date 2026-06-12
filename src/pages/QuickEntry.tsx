@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Play, Square, UserRound } from 'lucide-react';
+import { LoopsStepper } from '../components/LoopsStepper';
 import { useRaceStore } from '../store/raceStore';
 import { nextLapForRunner, runningLap } from '../lib/race';
 import { fmtChrono, fmtDayTime, fmtTimeHM } from '../lib/time';
@@ -7,6 +8,22 @@ import { useNow } from '../lib/useNow';
 import { TimeEdit } from '../components/TimeEdit';
 
 const ME_STORAGE_KEY = 'gva24_me';
+
+/** « J'ARRIVE » + nombre de boucles faites dans ce run (si tu as enchaîné). */
+function ArriveControls({ onFinish }: { onFinish: (loops: number) => void }) {
+  const [loops, setLoops] = useState(1);
+  return (
+    <div className="flex w-full max-w-sm flex-col items-center gap-3">
+      <LoopsStepper value={loops} onChange={setLoops} />
+      <button
+        onClick={() => onFinish(loops)}
+        className="flex w-full items-center justify-center gap-3 rounded-3xl bg-blue-500 py-8 text-3xl font-black text-slate-950 active:scale-95"
+      >
+        <Square className="h-8 w-8" /> J'ARRIVE{loops > 1 ? ` ×${loops}` : ''}
+      </button>
+    </div>
+  );
+}
 
 /** Écran 4 — vue minimaliste pour le coureur sur son téléphone. */
 export default function QuickEntry() {
@@ -99,12 +116,10 @@ export default function QuickEntry() {
               parti à {myLap.actualStart_ts ? fmtTimeHM(myLap.actualStart_ts) : '—'}
             </div>
           </div>
-          <button
-            onClick={() => finishLap(myLap.lapNumber)}
-            className="flex w-full max-w-sm items-center justify-center gap-3 rounded-3xl bg-blue-500 py-8 text-3xl font-black text-slate-950 active:scale-95"
-          >
-            <Square className="h-8 w-8" /> J'ARRIVE
-          </button>
+          <ArriveControls
+            key={myLap.id}
+            onFinish={(loops) => finishLap(myLap.lapNumber, undefined, loops)}
+          />
         </>
       ) : (
         <>

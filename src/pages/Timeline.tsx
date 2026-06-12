@@ -130,6 +130,7 @@ export default function Timeline() {
                       </button>
                     )}
                   </div>
+                  <LapRunnerPicker key={`r-${lap.id}-${lap.runnerId}`} lap={lap} />
                   <TimeEdit
                     key={`s-${lap.id}-${lap.actualStart_ts ?? ''}`}
                     label="Départ réel (heure de Paris)"
@@ -162,6 +163,54 @@ export default function Timeline() {
           );
         })}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Changer le coureur d'un tour : « Remplacer » (lui seul change) ou, pour un
+ * tour à venir, « S'insérer » (les coureurs suivants glissent d'un cran —
+ * permet à un coureur de prendre un tour de plus sans que personne ne saute).
+ */
+function LapRunnerPicker({ lap }: { lap: Lap }) {
+  const race = useRaceStore((s) => s.race)!;
+  const setLapRunner = useRaceStore((s) => s.setLapRunner);
+  const [sel, setSel] = useState(lap.runnerId);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <label className="flex flex-col gap-1 text-xs text-slate-400">
+        Coureur du tour
+        <select
+          value={sel}
+          onChange={(e) => setSel(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-base text-slate-100 outline-none focus:border-emerald-400"
+        >
+          {race.config.runnerOrder.map((id) => (
+            <option key={id} value={id}>
+              {race.runners[id]?.name ?? id}
+            </option>
+          ))}
+        </select>
+      </label>
+      {sel !== lap.runnerId && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setLapRunner(lap.lapNumber, sel, false)}
+            className="flex-1 rounded-lg bg-slate-700 py-2 text-sm font-semibold"
+          >
+            Remplacer sur ce tour
+          </button>
+          {lap.status === 'pending' && (
+            <button
+              onClick={() => setLapRunner(lap.lapNumber, sel, true)}
+              className="flex-1 rounded-lg bg-emerald-600 py-2 text-sm font-semibold"
+            >
+              S'insérer (les suivants glissent)
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

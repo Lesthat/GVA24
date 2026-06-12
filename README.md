@@ -77,7 +77,7 @@ En production sans Docker : `npm run build && npm start`.
 | `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, saisie inline des temps réels |
 | `/runners` | **Coureurs** | Fiche par coureur : allure base vs réelle, historique des tours, modification de l'allure de base |
 | `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros bouton **J'ARRIVE**, décompte de transition, saisie manuelle |
-| `/admin` | **Administration** | Horaires de la course, réinitialisation, restauration de la dernière session |
+| `/admin` | **Administration** | Horaires de la course, ordre de rotation (▲▼), réinitialisation, restauration |
 
 Codes couleur timeline : gris = à venir, bleu = en course, vert = terminé
 dans les temps ou plus rapide que prévu, orange = plus lent que prévu (> 1 min).
@@ -88,7 +88,7 @@ dans les temps ou plus rapide que prévu, orange = plus lent que prévu (> 1 min
 téléphones (React SPA)
    │  GET /api/race/2424            état complet au chargement
    │  GET /api/race/2424/events     SSE : état rediffusé à chaque changement
-   │  POST /api/race/2424/action    {type: start|finish|edit|basePace|reset|restore}
+   │  POST /api/race/2424/action    {type: start|finish(+loops)|edit|basePace|order|lapRunner|raceTimes|reset|restore}
    ▼
 serveur Node (dist-server/index.mjs, zéro dépendance runtime)
    │  applique l'action pure + recalcul en cascade (src/lib/race.ts,
@@ -117,6 +117,14 @@ base de données locale : data/race-2424.json (écriture atomique tmp+rename)
   ou saisie manuelle de l'arrivée) lance le décompte de 20 s (passage de la
   balise) puis le tour suivant démarre tout seul (départ réel = arrivée + 20 s).
   « Démarrer » ne sert qu'au départ de la course ;
+- **multi-tours à la validation** : un coureur peut enchaîner plusieurs
+  boucles ; à l'arrivée il règle le compteur (défaut 1) à côté de
+  « Terminer » / « J'ARRIVE ». Le run est découpé en N tours de durée égale,
+  les coureurs suivants glissent d'un cran (personne ne saute son tour) ;
+- **ordre modifiable à tout moment** : flèches ▲▼ dans l'Admin — les tours à
+  venir sont réattribués en continuant après le coureur en piste ; et dans la
+  Timeline, chaque tour a un sélecteur de coureur (« Remplacer » ce tour
+  seulement, ou « S'insérer » en faisant glisser les suivants) ;
 - les départs réels étant dérivés du passage de balise, **corriger une
   arrivée dans la Timeline corrige aussi le départ réel du tour suivant**
   (+20 s) et recalcule sa durée s'il est terminé ;

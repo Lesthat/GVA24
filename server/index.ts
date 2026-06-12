@@ -24,6 +24,8 @@ import {
   applyBasePace,
   applyEdit,
   applyFinish,
+  applyLapRunner,
+  applyOrder,
   applyRaceTimes,
   applyReset,
   applyRestore,
@@ -91,7 +93,12 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
     case 'start':
       return applyStart(state, num(body.lapNumber), isoOrNow(body.tsIso));
     case 'finish':
-      return applyFinish(state, num(body.lapNumber), isoOrNow(body.tsIso));
+      return applyFinish(
+        state,
+        num(body.lapNumber),
+        isoOrNow(body.tsIso),
+        body.loops === undefined || body.loops === null ? 1 : num(body.loops),
+      );
     case 'edit': {
       const raw = (body.patch ?? {}) as Record<string, unknown>;
       const patch: { startIso?: string | null; endIso?: string | null } = {};
@@ -101,6 +108,14 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
     }
     case 'basePace':
       return applyBasePace(state, String(body.runnerId), num(body.pace));
+    case 'order': {
+      const order = body.order;
+      if (!Array.isArray(order) || !order.every((id) => typeof id === 'string'))
+        throw new BadRequest('order invalide');
+      return applyOrder(state, order);
+    }
+    case 'lapRunner':
+      return applyLapRunner(state, num(body.lapNumber), String(body.runnerId), body.insert === true);
     case 'raceTimes': {
       const startIso = body.startIso;
       const endIso = body.endIso;

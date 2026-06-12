@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Play, Square, Timer } from 'lucide-react';
+import { LoopsStepper } from '../components/LoopsStepper';
 import { useRaceStore } from '../store/raceStore';
 import { useNow } from '../lib/useNow';
 import {
@@ -169,12 +170,10 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => finishLap(current.lapNumber)}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 py-3 text-lg font-bold text-slate-950"
-              >
-                <Square className="h-5 w-5" /> Terminer le tour
-              </button>
+              <FinishControls
+                key={current.id}
+                onFinish={(loops) => finishLap(current.lapNumber, undefined, loops)}
+              />
             </>
           )}
         </section>
@@ -244,6 +243,26 @@ export default function Dashboard() {
         {laps.length > 0 ? fmtDayTime(laps[laps.length - 1].predictedEnd_ts) : '—'}
       </div>
 
+    </div>
+  );
+}
+
+/**
+ * Validation du run : nombre de boucles effectuées (défaut 1, le coureur
+ * peut avoir enchaîné plusieurs tours) + bouton Terminer.
+ */
+function FinishControls({ onFinish }: { onFinish: (loops: number) => void }) {
+  const [loops, setLoops] = useState(1);
+  return (
+    <div className="mt-3 flex items-center gap-3">
+      <LoopsStepper value={loops} onChange={setLoops} />
+      <button
+        onClick={() => onFinish(loops)}
+        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-500 py-3 text-lg font-bold text-slate-950"
+      >
+        <Square className="h-5 w-5" />
+        {loops > 1 ? `Terminer (${loops} tours)` : 'Terminer le tour'}
+      </button>
     </div>
   );
 }

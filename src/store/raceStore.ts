@@ -12,9 +12,11 @@ interface RaceStore {
   join: (pin: string) => Promise<string | null>;
   leave: () => void;
   startLap: (lapNumber: number, tsIso?: string) => Promise<void>;
-  finishLap: (lapNumber: number, tsIso?: string) => Promise<void>;
+  finishLap: (lapNumber: number, tsIso?: string, loops?: number) => Promise<void>;
   editLap: (lapNumber: number, patch: { startIso?: string | null; endIso?: string | null }) => Promise<void>;
   setBasePace: (runnerId: string, paceSecPerKm: number) => Promise<void>;
+  setOrder: (order: string[]) => Promise<void>;
+  setLapRunner: (lapNumber: number, runnerId: string, insert: boolean) => Promise<void>;
   setRaceTimes: (startIso: string, endIso: string) => Promise<void>;
   resetRace: () => Promise<void>;
   restoreBackup: () => Promise<void>;
@@ -91,12 +93,18 @@ export const useRaceStore = create<RaceStore>((set, get) => {
 
     startLap: (lapNumber, tsIso) => mutate({ type: 'start', lapNumber, tsIso: tsIso ?? null }),
 
-    finishLap: (lapNumber, tsIso) => mutate({ type: 'finish', lapNumber, tsIso: tsIso ?? null }),
+    finishLap: (lapNumber, tsIso, loops = 1) =>
+      mutate({ type: 'finish', lapNumber, tsIso: tsIso ?? null, loops }),
 
     editLap: (lapNumber, patch) => mutate({ type: 'edit', lapNumber, patch }),
 
     setBasePace: (runnerId, paceSecPerKm) =>
       mutate({ type: 'basePace', runnerId, pace: paceSecPerKm }),
+
+    setOrder: (order) => mutate({ type: 'order', order }),
+
+    setLapRunner: (lapNumber, runnerId, insert) =>
+      mutate({ type: 'lapRunner', lapNumber, runnerId, insert }),
 
     setRaceTimes: (startIso, endIso) => mutate({ type: 'raceTimes', startIso, endIso }),
 
