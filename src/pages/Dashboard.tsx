@@ -63,12 +63,13 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Horloge + chrono course */}
-      <header className="flex items-baseline justify-between">
-        <div className="text-4xl font-bold tnum">
-          {fmtChronoLocal(now)}
+      {/* Stats d'équipe + chrono course */}
+      <header className="flex items-start justify-between gap-3">
+        <div className="text-2xl font-bold leading-tight tnum">
+          {done} tour{done > 1 ? 's' : ''} · {fmtKm(done * race.config.loopDistance_km)} km · D+{' '}
+          {Math.round(done * (race.config.elevationGain_m ?? 0))} m
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <div className="text-xs uppercase text-slate-400">
             {now < effectiveStartMs ? 'Départ dans' : 'Chrono course'}
           </div>
@@ -90,10 +91,7 @@ export default function Dashboard() {
         </div>
         <div className="mt-1 flex justify-between text-xs text-slate-400">
           <span>{(progress * 100).toFixed(1)} % de la course</span>
-          <span className="tnum">
-            {done} tours · {fmtKm(done * race.config.loopDistance_km)} km · D+{' '}
-            {Math.round(done * (race.config.elevationGain_m ?? 0))} m
-          </span>
+          <span className="tnum">{fmtChronoLocal(now)}</span>
         </div>
       </div>
 
