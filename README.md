@@ -1,7 +1,7 @@
 # GVA24 — Gestion de relais 24h
 
 Application web collaborative temps-réel pour gérer les relais de la course de
-24h (samedi 13 juin 2026 12h30 → dimanche 14 juin 12h00, modifiable dans l'app, boucle de 7 km, 9 coureurs en
+24h (samedi 13 juin 2026 12h30 → dimanche 14 juin 12h00, modifiable dans l'app, boucle de 7,02 km / D+ 46 m, 9 coureurs en
 rotation). Mobile-first, multi-utilisateurs, auto-hébergée : un seul conteneur
 Docker, base de données locale (fichiers JSON), temps réel via Server-Sent
 Events. **Aucun service externe.**
@@ -77,7 +77,7 @@ En production sans Docker : `npm run build && npm start`.
 | `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, saisie inline des temps réels |
 | `/runners` | **Coureurs** | Fiche par coureur : allure base vs réelle, historique des tours, modification de l'allure de base |
 | `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros bouton **J'ARRIVE**, décompte de transition, saisie manuelle |
-| `/admin` | **Administration** | Horaires de la course, ordre de rotation (▲▼), réinitialisation, restauration |
+| `/admin` | **Administration** | Horaires de la course, boucle (distance, D+), ordre de rotation (▲▼), réinitialisation, restauration |
 
 Codes couleur timeline : gris = à venir, bleu = en course, vert = terminé
 dans les temps ou plus rapide que prévu, orange = plus lent que prévu (> 1 min).
@@ -88,7 +88,7 @@ dans les temps ou plus rapide que prévu, orange = plus lent que prévu (> 1 min
 téléphones (React SPA)
    │  GET /api/race/2424            état complet au chargement
    │  GET /api/race/2424/events     SSE : état rediffusé à chaque changement
-   │  POST /api/race/2424/action    {type: start|finish(+loops)|edit|basePace|order|lapRunner|raceTimes|reset|restore}
+   │  POST /api/race/2424/action    {type: start|finish(+loops)|edit|basePace|order|lapRunner|loop|raceTimes|reset|restore}
    ▼
 serveur Node (dist-server/index.mjs, zéro dépendance runtime)
    │  applique l'action pure + recalcul en cascade (src/lib/race.ts,

@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { nextLapForRunner } from '../lib/race';
-import { fmtDayTime, paceToStr } from '../lib/time';
+import { fmtDayTime, fmtKm, paceToStr } from '../lib/time';
 
 export default function Runners() {
   const race = useRaceStore((s) => s.race)!;
@@ -46,7 +46,9 @@ export default function Runners() {
                         base {paceToStr(runner.basePace_secPerKm)}
                       </span>
                     )}
-                    <span>· {doneLaps} tours faits</span>
+                    <span className="tnum">
+                      · {doneLaps} tours · {fmtKm(doneLaps * race.config.loopDistance_km)} km
+                    </span>
                   </div>
                   {next && (
                     <div className="text-xs text-slate-500">

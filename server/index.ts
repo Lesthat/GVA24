@@ -25,6 +25,7 @@ import {
   applyEdit,
   applyFinish,
   applyLapRunner,
+  applyLoop,
   applyOrder,
   applyRaceTimes,
   applyReset,
@@ -116,6 +117,8 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
     }
     case 'lapRunner':
       return applyLapRunner(state, num(body.lapNumber), String(body.runnerId), body.insert === true);
+    case 'loop':
+      return applyLoop(state, num(body.distKm), num(body.elevM));
     case 'raceTimes': {
       const startIso = body.startIso;
       const endIso = body.endIso;

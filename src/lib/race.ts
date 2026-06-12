@@ -378,6 +378,19 @@ export function applyBasePace(state: RaceState, runnerId: string, paceSecPerKm: 
 }
 
 /**
+ * Modifie la boucle (distance, D+), puis cascade : les durées prévues et les
+ * allures réelles en dépendent.
+ */
+export function applyLoop(state: RaceState, distKm: number, elevM: number): RaceState {
+  if (!Number.isFinite(distKm) || distKm <= 0 || distKm > 100) return state;
+  if (!Number.isFinite(elevM) || elevM < 0 || elevM > 10000) return state;
+  return recalcSchedule(
+    { ...state, config: { ...state.config, loopDistance_km: distKm, elevationGain_m: elevM } },
+    Date.now(),
+  );
+}
+
+/**
  * Modifie le départ et/ou la fin de la course, puis régénère le planning.
  * Les tours déjà démarrés/terminés sont conservés tels quels.
  */

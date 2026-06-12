@@ -10,7 +10,7 @@ import {
   runningLap,
   sortedLaps,
 } from '../lib/race';
-import { fmtChrono, fmtDayTime, fmtTimeHM, paceToStr } from '../lib/time';
+import { fmtChrono, fmtDayTime, fmtKm, fmtTimeHM, paceToStr } from '../lib/time';
 
 const ordinal = (n: number) => (n === 1 ? '1er' : `${n}e`);
 
@@ -81,8 +81,9 @@ export default function Dashboard() {
         </div>
         <div className="mt-1 flex justify-between text-xs text-slate-400">
           <span>{(progress * 100).toFixed(1)} % de la course</span>
-          <span>
-            {done} tours · {done * race.config.loopDistance_km} km
+          <span className="tnum">
+            {done} tours · {fmtKm(done * race.config.loopDistance_km)} km · D+{' '}
+            {Math.round(done * (race.config.elevationGain_m ?? 0))} m
           </span>
         </div>
       </div>

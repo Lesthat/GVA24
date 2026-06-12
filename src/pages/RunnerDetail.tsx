@@ -6,6 +6,7 @@ import { sortedLaps } from '../lib/race';
 import {
   fmtDayTime,
   fmtDuration,
+  fmtKm,
   fmtSignedDuration,
   fmtTimeHM,
   paceToStr,
@@ -94,6 +95,26 @@ export default function RunnerDetail() {
           <div className="text-xs text-slate-500">format M:SS — recalcule le planning</div>
         </div>
       </section>
+
+      {/* Distance parcourue */}
+      <div className="flex justify-between rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm tnum">
+        <span>
+          <span className="font-bold text-slate-100">{doneLaps.length}</span> tours
+        </span>
+        <span>
+          <span className="font-bold text-slate-100">
+            {fmtKm(doneLaps.length * race.config.loopDistance_km)}
+          </span>{' '}
+          km
+        </span>
+        <span>
+          D+{' '}
+          <span className="font-bold text-slate-100">
+            {Math.round(doneLaps.length * (race.config.elevationGain_m ?? 0))}
+          </span>{' '}
+          m
+        </span>
+      </div>
 
       {/* Historique des performances */}
       <section>

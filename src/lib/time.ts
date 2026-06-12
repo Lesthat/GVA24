@@ -92,6 +92,11 @@ export function secondsBetween(laterIso: string, earlierIso: string): number {
   return differenceInSeconds(parseISO(laterIso), parseISO(earlierIso));
 }
 
+/** 21.0600000001 → "21,06" (affichage français, 2 décimales max). */
+export function fmtKm(km: number): string {
+  return km.toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+}
+
 /** ISO UTC → valeur pour <input type="datetime-local"> en heure de Paris. */
 export function isoToParisLocalInput(iso: string): string {
   const d = parseISO(iso);

@@ -35,6 +35,14 @@ export default function Admin() {
       </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <LoopForm
+          key={`${race.config.loopDistance_km}-${race.config.elevationGain_m ?? 0}`}
+          distKm={race.config.loopDistance_km}
+          elevM={race.config.elevationGain_m ?? 0}
+        />
+      </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
         <div className="text-xs font-semibold uppercase text-slate-400">Ordre de rotation</div>
         <ul className="mt-2 flex flex-col gap-1">
           {race.config.runnerOrder.map((id, i) => (
@@ -108,6 +116,65 @@ export default function Admin() {
           </p>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Caractéristiques de la boucle : distance (km) et dénivelé positif (m). */
+function LoopForm({ distKm, elevM }: { distKm: number; elevM: number }) {
+  const setLoop = useRaceStore((s) => s.setLoop);
+  const [dist, setDist] = useState(String(distKm).replace('.', ','));
+  const [elev, setElev] = useState(String(elevM));
+  const [error, setError] = useState<string | null>(null);
+
+  const dirty = dist !== String(distKm).replace('.', ',') || elev !== String(elevM);
+
+  function save() {
+    const d = Number.parseFloat(dist.replace(',', '.'));
+    const e = Number.parseInt(elev, 10);
+    if (!Number.isFinite(d) || d <= 0 || d > 100 || !Number.isFinite(e) || e < 0) {
+      setError('Valeurs invalides (ex. distance 7,02 — D+ 46).');
+      return;
+    }
+    setError(null);
+    setLoop(d, e);
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-xs font-semibold uppercase text-slate-400">Boucle</div>
+      <div className="flex gap-2">
+        <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
+          Distance (km)
+          <input
+            inputMode="decimal"
+            value={dist}
+            onChange={(e) => {
+              setDist(e.target.value);
+              setError(null);
+            }}
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 tnum outline-none focus:border-emerald-400"
+          />
+        </label>
+        <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
+          D+ (m)
+          <input
+            inputMode="numeric"
+            value={elev}
+            onChange={(e) => {
+              setElev(e.target.value);
+              setError(null);
+            }}
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 tnum outline-none focus:border-emerald-400"
+          />
+        </label>
+      </div>
+      {error && <p className="text-xs text-red-400">{error}</p>}
+      {dirty && (
+        <button onClick={save} className="rounded-xl bg-emerald-500 py-2.5 font-bold text-slate-950">
+          Enregistrer et recalculer le planning
+        </button>
+      )}
     </div>
   );
 }

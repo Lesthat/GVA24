@@ -24,6 +24,7 @@ export interface RaceConfig {
   startTime: string; // ISO 8601 UTC
   endTime: string; // ISO 8601 UTC
   loopDistance_km: number;
+  elevationGain_m?: number; // D+ d'une boucle (optionnel : anciennes courses)
   transitionTime_sec: number;
   runnerOrder: string[]; // ids des coureurs dans l'ordre de rotation
 }
