@@ -41,7 +41,21 @@ export default function Dashboard() {
     return min;
   }, [laps]);
   const effectiveStartMs = Math.min(startMs, firstActualStartMs);
-  const progress = Math.min(1, Math.max(0, (now - effectiveStartMs) / (endMs - effectiveStartMs)));
+
+  // Une fois la course terminée et le dernier coureur arrivé, le chrono se
+  // fige à son heure d'arrivée réelle (et non à l'heure courante).
+  const lastFinishMs = useMemo(() => {
+    let max = -Infinity;
+    for (const l of laps)
+      if (l.status === 'done' && l.actualEnd_ts) max = Math.max(max, Date.parse(l.actualEnd_ts));
+    return max === -Infinity ? null : max;
+  }, [laps]);
+  const chronoStopped = finished && !current && lastFinishMs !== null;
+  const chronoRefMs = chronoStopped ? lastFinishMs : now;
+  const progress = Math.min(
+    1,
+    Math.max(0, (chronoRefMs - effectiveStartMs) / (endMs - effectiveStartMs)),
+  );
 
   const currentRunner = current ? race.runners[current.runnerId] : null;
   const nextRunner = next ? race.runners[next.runnerId] : null;
@@ -73,12 +87,14 @@ export default function Dashboard() {
         </div>
         <div className="shrink-0 text-right">
           <div className="text-xs uppercase text-slate-400">
-            {now < effectiveStartMs ? 'Départ dans' : 'Chrono course'}
+            {chronoStopped ? 'Temps final' : now < effectiveStartMs ? 'Départ dans' : 'Chrono course'}
           </div>
-          <div className="text-xl font-semibold text-emerald-400 tnum">
-            {now < effectiveStartMs
+          <div
+            className={`text-xl font-semibold tnum ${chronoStopped ? 'text-red-300' : 'text-emerald-400'}`}
+          >
+            {now < effectiveStartMs && !chronoStopped
               ? fmtChrono((effectiveStartMs - now) / 1000)
-              : fmtChrono((now - effectiveStartMs) / 1000)}
+              : fmtChrono((chronoRefMs - effectiveStartMs) / 1000)}
           </div>
         </div>
       </header>
