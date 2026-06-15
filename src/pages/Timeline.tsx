@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Download, Play, Square } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Play, Square } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { sortedLaps } from '../lib/race';
-import { buildTimelineCsv, downloadFile, exportStamp } from '../lib/export';
 import { fmtDayTime, fmtDuration, fmtSignedDuration, fmtTimeHM, secondsBetween } from '../lib/time';
 import { TimeEdit } from '../components/TimeEdit';
 import type { Lap } from '../lib/types';
@@ -35,12 +34,12 @@ export default function Timeline() {
   const editLap = useRaceStore((s) => s.editLap);
 
   const swapLaps = useRaceStore((s) => s.swapLaps);
-  const pin = useRaceStore((s) => s.pin);
   const [filter, setFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Affichage du plus récent au plus ancien (derniers passages en haut).
   const laps = useMemo(() => {
-    const all = sortedLaps(race);
+    const all = sortedLaps(race).reverse();
     return filter === 'all' ? all : all.filter((l) => l.runnerId === filter);
   }, [race, filter]);
 
@@ -55,21 +54,7 @@ export default function Timeline() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold">Timeline</h1>
-        <button
-          onClick={() =>
-            downloadFile(
-              `gva24-${pin ?? 'course'}-${exportStamp()}.csv`,
-              buildTimelineCsv(race),
-              'text/csv',
-            )
-          }
-          className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950"
-        >
-          <Download className="h-4 w-4" /> Exporter
-        </button>
-      </div>
+      <h1 className="text-xl font-bold">Timeline</h1>
 
       {/* Filtre par coureur */}
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -146,20 +131,22 @@ export default function Timeline() {
                         idx >= 0 && idx < pendingNumbers.length - 1
                           ? pendingNumbers[idx + 1]
                           : null;
+                      // Liste affichée du plus récent au plus ancien : la ligne
+                      // au-dessus est le tour chronologiquement suivant (next).
                       return (
                         <>
                           <button
-                            onClick={() => prev !== null && swapLaps(prev, lap.lapNumber)}
-                            disabled={prev === null}
-                            aria-label="monter ce coureur d'un tour"
+                            onClick={() => next !== null && swapLaps(lap.lapNumber, next)}
+                            disabled={next === null}
+                            aria-label="déplacer ce coureur vers le haut"
                             className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 disabled:opacity-30"
                           >
                             <ArrowUp className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => next !== null && swapLaps(lap.lapNumber, next)}
-                            disabled={next === null}
-                            aria-label="descendre ce coureur d'un tour"
+                            onClick={() => prev !== null && swapLaps(prev, lap.lapNumber)}
+                            disabled={prev === null}
+                            aria-label="déplacer ce coureur vers le bas"
                             className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800 disabled:opacity-30"
                           >
                             <ArrowDown className="h-4 w-4" />
