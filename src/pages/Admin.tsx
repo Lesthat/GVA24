@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, History, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, FileJson, FileSpreadsheet, History, RotateCcw } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { fmtDayTime, isoToParisLocalInput, parisLocalInputToIso } from '../lib/time';
+import { buildFullJson, buildTimelineCsv, downloadFile, exportStamp } from '../lib/export';
 
 export default function Admin() {
   const race = useRaceStore((s) => s.race)!;
+  const pin = useRaceStore((s) => s.pin);
   const resetRace = useRaceStore((s) => s.resetRace);
   const restoreBackup = useRaceStore((s) => s.restoreBackup);
   const setOrder = useRaceStore((s) => s.setOrder);
@@ -17,9 +19,41 @@ export default function Admin() {
     setOrder(order);
   }
 
+  const base = `gva24-${pin ?? 'course'}-${exportStamp()}`;
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold">Administration</h1>
+
+      {/* Export — placé en tête : sauvegarde de la course passée. */}
+      <section className="rounded-2xl border border-emerald-500/40 bg-slate-900 p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase text-emerald-400">
+          <Download className="h-4 w-4" /> Exporter / sauvegarder
+        </div>
+        <div className="mt-3 flex flex-col gap-2">
+          <button
+            onClick={() =>
+              downloadFile(`${base}.csv`, buildTimelineCsv(race), 'text/csv')
+            }
+            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 font-bold text-slate-950"
+          >
+            <FileSpreadsheet className="h-5 w-5" /> Timeline CSV (Excel)
+          </button>
+          <button
+            onClick={() =>
+              downloadFile(`${base}.json`, buildFullJson(race), 'application/json')
+            }
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-3 font-semibold text-slate-200"
+          >
+            <FileJson className="h-5 w-5" /> Sauvegarde complète JSON
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Le CSV contient tous les tours (heures prévues et réelles, durées, allures, écarts, km et
+          D+ cumulés) pour Excel ou Google Sheets. Le JSON est une copie fidèle et complète de la
+          course — à conserver précieusement, il permet de tout restaurer.
+        </p>
+      </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
         <RaceTimesForm

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Play, Square } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Download, Play, Square } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { sortedLaps } from '../lib/race';
+import { buildTimelineCsv, downloadFile, exportStamp } from '../lib/export';
 import { fmtDayTime, fmtDuration, fmtSignedDuration, fmtTimeHM, secondsBetween } from '../lib/time';
 import { TimeEdit } from '../components/TimeEdit';
 import type { Lap } from '../lib/types';
@@ -34,6 +35,7 @@ export default function Timeline() {
   const editLap = useRaceStore((s) => s.editLap);
 
   const swapLaps = useRaceStore((s) => s.swapLaps);
+  const pin = useRaceStore((s) => s.pin);
   const [filter, setFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -53,7 +55,21 @@ export default function Timeline() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl font-bold">Timeline</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Timeline</h1>
+        <button
+          onClick={() =>
+            downloadFile(
+              `gva24-${pin ?? 'course'}-${exportStamp()}.csv`,
+              buildTimelineCsv(race),
+              'text/csv',
+            )
+          }
+          className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950"
+        >
+          <Download className="h-4 w-4" /> Exporter
+        </button>
+      </div>
 
       {/* Filtre par coureur */}
       <div className="flex gap-2 overflow-x-auto pb-1">

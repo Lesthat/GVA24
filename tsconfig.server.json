@@ -13,5 +13,6 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["server", "src/lib"]
+  "include": ["server", "src/lib"],
+  "exclude": ["src/lib/export.ts"]
 }
