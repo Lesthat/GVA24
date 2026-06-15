@@ -1,7 +1,19 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Download, FileJson, FileSpreadsheet, History, RotateCcw } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  FileJson,
+  FileSpreadsheet,
+  Flag,
+  History,
+  RotateCcw,
+  Trash2,
+  UserPlus,
+} from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
-import { fmtDayTime, isoToParisLocalInput, parisLocalInputToIso } from '../lib/time';
+import { sortedLaps } from '../lib/race';
+import { fmtDayTime, isoToParisLocalInput, parisLocalInputToIso, strToPace } from '../lib/time';
 import { buildFullJson, buildTimelineCsv, downloadFile, exportStamp } from '../lib/export';
 
 export default function Admin() {
@@ -10,6 +22,12 @@ export default function Admin() {
   const resetRace = useRaceStore((s) => s.resetRace);
   const restoreBackup = useRaceStore((s) => s.restoreBackup);
   const setOrder = useRaceStore((s) => s.setOrder);
+  const removeRunner = useRaceStore((s) => s.removeRunner);
+  const finishRace = useRaceStore((s) => s.finishRace);
+  const resumeRace = useRaceStore((s) => s.resumeRace);
+  const removeLastLap = useRaceStore((s) => s.removeLastLap);
+
+  const finished = race.config.finished === true;
 
   function move(index: number, delta: -1 | 1) {
     const order = [...race.config.runnerOrder];
@@ -19,6 +37,21 @@ export default function Admin() {
     setOrder(order);
   }
 
+  function removeMember(id: string) {
+    const name = race.runners[id]?.name ?? id;
+    const isRunning = sortedLaps(race).some((l) => l.runnerId === id && l.status === 'running');
+    if (isRunning) {
+      window.alert(`${name} est en course : impossible de le retirer maintenant.`);
+      return;
+    }
+    const hasRun = sortedLaps(race).some((l) => l.runnerId === id && l.status === 'done');
+    const msg = hasRun
+      ? `Retirer ${name} de la rotation ? Ses tours déjà courus restent dans l'historique, mais il ne prendra plus de tour.`
+      : `Retirer ${name} de l'équipe ?`;
+    if (window.confirm(msg)) removeRunner(id);
+  }
+
+  const lastLap = sortedLaps(race).at(-1);
   const base = `gva24-${pin ?? 'course'}-${exportStamp()}`;
 
   return (
@@ -77,18 +110,18 @@ export default function Admin() {
       </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-        <div className="text-xs font-semibold uppercase text-slate-400">Ordre de rotation</div>
+        <div className="text-xs font-semibold uppercase text-slate-400">Équipe & rotation</div>
         <ul className="mt-2 flex flex-col gap-1">
           {race.config.runnerOrder.map((id, i) => (
             <li
               key={id}
-              className="flex items-center justify-between rounded-lg bg-slate-950 px-3 py-2"
+              className="flex items-center justify-between gap-2 rounded-lg bg-slate-950 px-3 py-2"
             >
-              <span className="font-semibold">
+              <span className="min-w-0 truncate font-semibold">
                 <span className="mr-2 text-slate-500">{i + 1}.</span>
                 {race.runners[id]?.name ?? id}
               </span>
-              <span className="flex gap-1">
+              <span className="flex shrink-0 gap-1">
                 <button
                   onClick={() => move(i, -1)}
                   disabled={i === 0}
@@ -105,14 +138,82 @@ export default function Admin() {
                 >
                   <ChevronDown className="h-5 w-5" />
                 </button>
+                <button
+                  onClick={() => removeMember(id)}
+                  disabled={race.config.runnerOrder.length <= 1}
+                  aria-label="retirer"
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 text-red-400 disabled:opacity-30"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
               </span>
             </li>
           ))}
         </ul>
+        <AddRunnerForm />
         <p className="mt-3 text-xs text-slate-500">
-          Modifier l'ordre réattribue tous les tours à venir, en continuant après le coureur en
-          piste. Les tours déjà courus ne changent pas.
+          Ajouter, retirer ou réordonner un membre réattribue les tours à venir, en continuant après
+          le coureur en piste. Les tours déjà courus ne changent pas.
         </p>
+      </section>
+
+      {/* Fin officielle de la course */}
+      <section className="flex flex-col gap-2 rounded-2xl border border-red-500/40 bg-slate-900 p-4">
+        <div className="text-xs font-semibold uppercase text-slate-400">Fin de course</div>
+        {!finished ? (
+          <>
+            <button
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'Terminer officiellement RUN24 ? Plus aucun nouveau coureur ne pourra partir. Le coureur en piste pourra finir sa boucle. (Réversible ici.)',
+                  )
+                )
+                  finishRace();
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-lg font-bold text-white"
+            >
+              <Flag className="h-5 w-5" /> DONE — Terminer RUN24
+            </button>
+            <p className="text-xs text-slate-500">
+              À cliquer une fois les 24 h écoulées : le dernier coureur parti finit sa boucle, mais
+              aucun nouveau départ n'est généré.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="rounded-xl bg-red-600/20 px-3 py-2 text-center font-semibold text-red-300">
+              🏁 Course terminée
+              {race.config.finishedAt ? ` — ${fmtDayTime(race.config.finishedAt)}` : ''}
+            </div>
+            {lastLap && (
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Retirer le dernier tour de la timeline (#${lastLap.lapNumber} · ${
+                        race.runners[lastLap.runnerId]?.name ?? ''
+                      }) ?`,
+                    )
+                  )
+                    removeLastLap();
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border border-red-500/50 py-3 font-semibold text-red-400"
+              >
+                <Trash2 className="h-5 w-5" /> Retirer le dernier tour (#{lastLap.lapNumber})
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (window.confirm('Reprendre la course ? Le planning à venir sera régénéré.'))
+                  resumeRace();
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-3 font-semibold text-slate-200"
+            >
+              <RotateCcw className="h-5 w-5" /> Reprendre la course
+            </button>
+          </>
+        )}
       </section>
 
       <section className="flex flex-col gap-2 rounded-2xl border border-slate-800 bg-slate-900 p-4">
@@ -150,6 +251,60 @@ export default function Admin() {
           </p>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Ajout d'un membre à l'équipe : nom + allure de base (M:SS /km). */
+function AddRunnerForm() {
+  const addRunner = useRaceStore((s) => s.addRunner);
+  const [name, setName] = useState('');
+  const [pace, setPace] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  function add() {
+    const p = strToPace(pace);
+    if (!name.trim() || !p) {
+      setError('Renseignez un nom et une allure au format M:SS (ex. 5:30).');
+      return;
+    }
+    addRunner(name.trim(), p);
+    setName('');
+    setPace('');
+    setError(null);
+  }
+
+  return (
+    <div className="mt-3 border-t border-slate-800 pt-3">
+      <div className="flex gap-2">
+        <input
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            setError(null);
+          }}
+          placeholder="Nom"
+          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 outline-none focus:border-emerald-400"
+        />
+        <input
+          value={pace}
+          onChange={(e) => {
+            setPace(e.target.value);
+            setError(null);
+          }}
+          inputMode="numeric"
+          placeholder="5:30"
+          className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-base text-slate-100 tnum outline-none focus:border-emerald-400"
+        />
+        <button
+          onClick={add}
+          aria-label="ajouter le coureur"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-slate-950"
+        >
+          <UserPlus className="h-5 w-5" />
+        </button>
+      </div>
+      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
     </div>
   );
 }

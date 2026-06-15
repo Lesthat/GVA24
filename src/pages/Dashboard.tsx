@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Play, Square, Timer, Undo2 } from 'lucide-react';
+import { Flag, Play, Square, Timer, Undo2 } from 'lucide-react';
 import { LoopsStepper } from '../components/LoopsStepper';
 import { useRaceStore } from '../store/raceStore';
 import { useNow } from '../lib/useNow';
@@ -19,8 +19,10 @@ export default function Dashboard() {
   const startLap = useRaceStore((s) => s.startLap);
   const finishLap = useRaceStore((s) => s.finishLap);
   const undoFinish = useRaceStore((s) => s.undoFinish);
+  const finishRace = useRaceStore((s) => s.finishRace);
   const now = useNow();
 
+  const finished = race.config.finished === true;
   const startMs = Date.parse(race.config.startTime);
   const endMs = Date.parse(race.config.endTime);
   const current = useMemo(() => runningLap(race), [race]);
@@ -94,6 +96,39 @@ export default function Dashboard() {
           <span className="tnum">{fmtChronoLocal(now)}</span>
         </div>
       </div>
+
+      {/* Course terminée officiellement */}
+      {finished && (
+        <section className="rounded-2xl border border-red-500/50 bg-red-600/15 p-4 text-center">
+          <div className="text-lg font-bold text-red-300">🏁 RUN24 terminé</div>
+          <div className="mt-1 text-sm text-slate-300">
+            {done} tours · {fmtKm(done * race.config.loopDistance_km)} km · D+{' '}
+            {Math.round(done * (race.config.elevationGain_m ?? 0))} m
+          </div>
+          {current && (
+            <div className="mt-1 text-xs text-slate-400">
+              {currentRunner?.name} peut encore terminer sa dernière boucle.
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Bouton DONE : apparaît une fois les 24 h écoulées */}
+      {!finished && now >= endMs && (
+        <button
+          onClick={() => {
+            if (
+              window.confirm(
+                'Terminer officiellement RUN24 ? Plus aucun nouveau coureur ne pourra partir (le coureur en piste finit sa boucle).',
+              )
+            )
+              finishRace();
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 py-4 text-xl font-black text-white"
+        >
+          <Flag className="h-6 w-6" /> DONE RUN24
+        </button>
+      )}
 
       {/* Coureur en cours */}
       {current && currentRunner ? (
@@ -243,26 +278,28 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* 5 prochains passages */}
-      <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase text-slate-400">
-          Prochains passages
-        </h2>
-        <ul className="divide-y divide-slate-800 overflow-hidden rounded-2xl border border-slate-800">
-          {upcoming.map((lap) => (
-            <li key={lap.id} className="flex items-center justify-between bg-slate-900 px-4 py-3">
-              <span className="font-semibold">
-                {race.runners[lap.runnerId]?.name}
-                <span className="ml-2 text-xs text-slate-400">#{lap.lapNumber}</span>
-              </span>
-              <span className="text-slate-300 tnum">{fmtDayTime(lap.predictedStart_ts)}</span>
-            </li>
-          ))}
-          {upcoming.length === 0 && (
-            <li className="bg-slate-900 px-4 py-3 text-slate-400">Fin de course proche !</li>
-          )}
-        </ul>
-      </section>
+      {/* 8 prochains passages */}
+      {!finished && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold uppercase text-slate-400">
+            Prochains passages
+          </h2>
+          <ul className="divide-y divide-slate-800 overflow-hidden rounded-2xl border border-slate-800">
+            {upcoming.map((lap) => (
+              <li key={lap.id} className="flex items-center justify-between bg-slate-900 px-4 py-3">
+                <span className="font-semibold">
+                  {race.runners[lap.runnerId]?.name}
+                  <span className="ml-2 text-xs text-slate-400">#{lap.lapNumber}</span>
+                </span>
+                <span className="text-slate-300 tnum">{fmtDayTime(lap.predictedStart_ts)}</span>
+              </li>
+            ))}
+            {upcoming.length === 0 && (
+              <li className="bg-slate-900 px-4 py-3 text-slate-400">Fin de course proche !</li>
+            )}
+          </ul>
+        </section>
+      )}
 
       <div className="text-center text-xs text-slate-500">
         {laps.length} tours planifiés · fin de course {fmtDayTime(race.config.endTime)} · dernier

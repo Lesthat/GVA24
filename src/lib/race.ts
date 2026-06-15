@@ -109,7 +109,11 @@ export function recalcSchedule(state: RaceState, nowMs?: number): RaceState {
     }
 
     // Tour à venir : recalculé depuis le curseur.
+    // Course officiellement terminée → on ne génère plus aucun départ.
+    if (config.finished) break;
     if (cursorMs >= endMs) break; // la course se termine avant ce départ
+    // Un coureur retiré de l'équipe peut encore figurer sur un pending : on
+    // bascule alors sur le suivant de la rotation.
     const runnerId =
       existing && runners[existing.runnerId] ? existing.runnerId : nextInRotation();
     const runner = runners[runnerId];
@@ -200,6 +204,7 @@ export function applyStart(state: RaceState, lapNumber: number, tsIso: string): 
  * que ce départ est dans le futur.
  */
 function autoStartNext(state: RaceState, afterLapNumber: number, endIso: string): RaceState {
+  if (state.config.finished) return state; // course terminée : plus de départ
   if (runningLap(state)) return state;
   const next = sortedLaps(state).find(
     (l) => l.status === 'pending' && l.lapNumber > afterLapNumber,
@@ -536,6 +541,27 @@ export function applyRestore(state: RaceState): RaceState {
 }
 
 /**
+ * Réattribue tous les tours à venir selon `order`, en continuant après le
+ * coureur du dernier tour démarré. Les tours courus/en cours ne bougent pas.
+ * Partagé par le réordonnancement, l'ajout et le retrait d'un coureur.
+ */
+function reassignPending(laps: Record<string, Lap>, order: string[]): Record<string, Lap> {
+  const out = { ...laps };
+  let lastRunnerId: string | null = null;
+  for (const lap of Object.values(laps).sort((a, b) => a.lapNumber - b.lapNumber)) {
+    if (lap.status !== 'pending') {
+      lastRunnerId = lap.runnerId;
+      continue;
+    }
+    const idx: number = lastRunnerId ? order.indexOf(lastRunnerId) : -1;
+    const runnerId: string = order[(idx + 1) % order.length];
+    out[lap.id] = { ...lap, runnerId };
+    lastRunnerId = runnerId;
+  }
+  return out;
+}
+
+/**
  * Modifie l'ordre de rotation. Tous les tours à venir sont réattribués selon
  * le nouvel ordre, en continuant après le coureur du dernier tour démarré.
  * Les tours courus/en cours ne changent pas.
@@ -547,23 +573,107 @@ export function applyOrder(state: RaceState, newOrder: string[]): RaceState {
     [...newOrder].sort().join('|') !== [...current].sort().join('|')
   )
     return state;
-
-  const laps = { ...state.laps };
-  let lastRunnerId: string | null = null;
-  for (const lap of sortedLaps(state)) {
-    if (lap.status !== 'pending') {
-      lastRunnerId = lap.runnerId;
-      continue;
-    }
-    const idx: number = lastRunnerId ? newOrder.indexOf(lastRunnerId) : -1;
-    const runnerId: string = newOrder[(idx + 1) % newOrder.length];
-    laps[lap.id] = { ...lap, runnerId };
-    lastRunnerId = runnerId;
-  }
   return recalcSchedule(
-    { ...state, config: { ...state.config, runnerOrder: newOrder }, laps },
+    {
+      ...state,
+      config: { ...state.config, runnerOrder: newOrder },
+      laps: reassignPending(state.laps, newOrder),
+    },
     Date.now(),
   );
+}
+
+const slug = (name: string) =>
+  name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+/** Ajoute un coureur à l'équipe (placé en fin de rotation), puis cascade. */
+export function applyAddRunner(state: RaceState, name: string, paceSecPerKm: number): RaceState {
+  const trimmed = name.trim();
+  if (!trimmed || paceSecPerKm < 120 || paceSecPerKm > 1200) return state;
+  // id unique à partir du nom (suffixe numérique en cas de doublon).
+  const baseId = slug(trimmed) || 'coureur';
+  let id = baseId;
+  let i = 2;
+  while (state.runners[id]) id = `${baseId}${i++}`;
+
+  const runners = {
+    ...state.runners,
+    [id]: { id, name: trimmed, basePace_secPerKm: paceSecPerKm, currentPace_secPerKm: paceSecPerKm },
+  };
+  const order = [...state.config.runnerOrder, id];
+  // Réattribue les tours à venir pour intégrer le nouveau coureur à la rotation.
+  return recalcSchedule(
+    { ...state, runners, config: { ...state.config, runnerOrder: order }, laps: reassignPending(state.laps, order) },
+    Date.now(),
+  );
+}
+
+/**
+ * Retire un coureur de l'équipe. Refusé s'il est en course ou s'il reste le
+ * dernier. S'il a déjà couru, il est seulement sorti de la rotation (son
+ * historique reste consultable) ; s'il n'a jamais couru, il est supprimé.
+ * Les tours à venir sont réattribués à l'équipe restante.
+ */
+export function applyRemoveRunner(state: RaceState, runnerId: string): RaceState {
+  const order = state.config.runnerOrder;
+  if (!order.includes(runnerId) || order.length <= 1) return state;
+  const own = sortedLaps(state).filter((l) => l.runnerId === runnerId);
+  if (own.some((l) => l.status === 'running')) return state; // en course : interdit
+  const hasRun = own.some((l) => l.status === 'done');
+
+  const newOrder = order.filter((id) => id !== runnerId);
+  const runners = { ...state.runners };
+  if (!hasRun) delete runners[runnerId]; // jamais couru : on l'efface
+
+  // Les tours à venir qui lui étaient attribués sont d'abord neutralisés,
+  // puis tout est réattribué selon la rotation restante.
+  const laps = { ...state.laps };
+  for (const lap of own) if (lap.status === 'pending') laps[lap.id] = { ...lap, runnerId: newOrder[0] };
+
+  return recalcSchedule(
+    { ...state, runners, config: { ...state.config, runnerOrder: newOrder }, laps: reassignPending(laps, newOrder) },
+    Date.now(),
+  );
+}
+
+/**
+ * Termine officiellement la course (bouton DONE) : plus aucun nouveau départ.
+ * Les tours à venir non démarrés sont supprimés ; le tour en cours peut être
+ * terminé normalement (le dernier coureur finit sa boucle au-delà des 24h).
+ */
+export function applyFinishRace(state: RaceState, nowIso: string): RaceState {
+  const laps: Record<string, Lap> = {};
+  for (const lap of Object.values(state.laps ?? {})) {
+    if (lap.status !== 'pending') laps[lap.id] = lap;
+  }
+  return recalcSchedule({
+    ...state,
+    config: { ...state.config, finished: true, finishedAt: nowIso },
+    laps,
+  });
+}
+
+/** Annule la fin officielle et régénère le planning à venir. */
+export function applyResumeRace(state: RaceState): RaceState {
+  return recalcSchedule(
+    { ...state, config: { ...state.config, finished: false, finishedAt: null } },
+    Date.now(),
+  );
+}
+
+/** Retire le tout dernier tour de la timeline (course terminée uniquement). */
+export function applyRemoveLastLap(state: RaceState): RaceState {
+  if (!state.config.finished) return state;
+  const all = sortedLaps(state);
+  if (all.length <= 1) return state;
+  const last = all[all.length - 1];
+  const laps = { ...state.laps };
+  delete laps[last.id];
+  return recalcSchedule({ ...state, laps });
 }
 
 /**

@@ -77,7 +77,7 @@ En production sans Docker : `npm run build && npm start`.
 | `/timeline` | **Timeline** | Tous les tours, prévu vs réel, écart coloré, filtre par coureur, saisie inline des temps réels |
 | `/runners` | **Coureurs** | Fiche par coureur : allure base vs réelle, historique des tours, modification de l'allure de base |
 | `/quick` | **Saisie rapide** | Vue coureur : « TON PROCHAIN TOUR », gros bouton **J'ARRIVE**, décompte de transition, saisie manuelle |
-| `/admin` | **Administration** | Horaires de la course, boucle (distance, D+), ordre de rotation (▲▼), réinitialisation, restauration |
+| `/admin` | **Administration** | Horaires, boucle (distance, D+), équipe (ajout/retrait/▲▼), fin officielle de course, réinitialisation, restauration |
 
 Codes couleur timeline : gris = à venir, bleu = en course, vert = terminé
 dans les temps ou plus rapide que prévu, orange = plus lent que prévu (> 1 min).
@@ -88,7 +88,8 @@ dans les temps ou plus rapide que prévu, orange = plus lent que prévu (> 1 min
 téléphones (React SPA)
    │  GET /api/race/2424            état complet au chargement
    │  GET /api/race/2424/events     SSE : état rediffusé à chaque changement
-   │  POST /api/race/2424/action    {type: start|finish(+loops)|edit|basePace|order|lapRunner|loop|raceTimes|reset|restore}
+   │  POST /api/race/2424/action    {type: start|finish(+loops)|edit|basePace|order|lapRunner|loop|raceTimes|
+   │                    addRunner|removeRunner|finishRace|resumeRace|removeLastLap|reset|restore}
    ▼
 serveur Node (dist-server/index.mjs, zéro dépendance runtime)
    │  applique l'action pure + recalcul en cascade (src/lib/race.ts,
@@ -130,6 +131,13 @@ base de données locale : data/race-2424.json (écriture atomique tmp+rename)
   (+20 s) et recalcule sa durée s'il est terminé ;
 - un seul tour « en course » à la fois ; **J'ARRIVE** sans départ enregistré
   retombe sur le départ prévu ;
+- **fin officielle (bouton DONE RUN24, rouge)** : une fois les 24 h écoulées,
+  termine la course — plus aucun nouveau départ n'est généré, mais le dernier
+  coureur parti peut finir sa boucle au-delà des 24 h. Réversible (Reprendre)
+  et, une fois terminée, on peut retirer le dernier tour de la timeline ;
+- **équipe modifiable** : ajout/retrait d'un membre dans l'Admin ; les tours à
+  venir sont réattribués. Un coureur ayant déjà couru sort de la rotation mais
+  garde son historique ; en course, il ne peut pas être retiré ;
 - **les 24h découlent du premier départ réel** : l'heure configurée ne sert
   qu'au compte à rebours ; le départ réel du premier coureur recale la fenêtre
   de course (durée conservée), visible et modifiable dans l'onglet Admin ;

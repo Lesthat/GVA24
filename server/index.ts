@@ -21,15 +21,20 @@ import {
 } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 import {
+  applyAddRunner,
   applyBasePace,
   applyEdit,
   applyFinish,
+  applyFinishRace,
   applyLapRunner,
   applyLapSwap,
   applyLoop,
   applyOrder,
   applyRaceTimes,
+  applyRemoveLastLap,
+  applyRemoveRunner,
   applyReset,
+  applyResumeRace,
   applyRestore,
   applyStart,
   applyUndoFinish,
@@ -134,6 +139,16 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
         throw new BadRequest('endIso invalide');
       return applyRaceTimes(state, startIso, endIso);
     }
+    case 'addRunner':
+      return applyAddRunner(state, String(body.name ?? ''), num(body.pace));
+    case 'removeRunner':
+      return applyRemoveRunner(state, String(body.runnerId));
+    case 'finishRace':
+      return applyFinishRace(state, new Date().toISOString());
+    case 'resumeRace':
+      return applyResumeRace(state);
+    case 'removeLastLap':
+      return applyRemoveLastLap(state);
     case 'reset':
       return applyReset(state, new Date().toISOString());
     case 'restore':

@@ -27,6 +27,8 @@ export interface RaceConfig {
   elevationGain_m?: number; // D+ d'une boucle (optionnel : anciennes courses)
   transitionTime_sec: number;
   runnerOrder: string[]; // ids des coureurs dans l'ordre de rotation
+  finished?: boolean; // course officiellement terminée (plus aucun départ)
+  finishedAt?: string | null; // ISO du clic "DONE"
 }
 
 /** Photo de la course prise au moment d'un reset, pour pouvoir la restaurer. */

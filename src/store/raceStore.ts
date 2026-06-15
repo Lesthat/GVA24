@@ -21,6 +21,11 @@ interface RaceStore {
   setLoop: (distKm: number, elevM: number) => Promise<void>;
   undoFinish: () => Promise<void>;
   swapLaps: (lapA: number, lapB: number) => Promise<void>;
+  addRunner: (name: string, paceSecPerKm: number) => Promise<void>;
+  removeRunner: (runnerId: string) => Promise<void>;
+  finishRace: () => Promise<void>;
+  resumeRace: () => Promise<void>;
+  removeLastLap: () => Promise<void>;
   resetRace: () => Promise<void>;
   restoreBackup: () => Promise<void>;
   clearError: () => void;
@@ -116,6 +121,16 @@ export const useRaceStore = create<RaceStore>((set, get) => {
     undoFinish: () => mutate({ type: 'undoFinish' }),
 
     swapLaps: (lapA, lapB) => mutate({ type: 'lapSwap', lapA, lapB }),
+
+    addRunner: (name, paceSecPerKm) => mutate({ type: 'addRunner', name, pace: paceSecPerKm }),
+
+    removeRunner: (runnerId) => mutate({ type: 'removeRunner', runnerId }),
+
+    finishRace: () => mutate({ type: 'finishRace' }),
+
+    resumeRace: () => mutate({ type: 'resumeRace' }),
+
+    removeLastLap: () => mutate({ type: 'removeLastLap' }),
 
     resetRace: () => mutate({ type: 'reset' }),
 
