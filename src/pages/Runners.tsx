@@ -1,11 +1,28 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, TrendingDown, TrendingUp } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { nextLapForRunner } from '../lib/race';
+import { RankMedal } from '../components/RankMedal';
 import { fmtDayTime, fmtKm, paceToStr } from '../lib/time';
 
 export default function Runners() {
   const race = useRaceStore((s) => s.race)!;
+
+  // Classement par allure réelle (moyenne pondérée), parmi les coureurs ayant
+  // terminé au moins un tour. Top 3 → médailles or / argent / bronze.
+  const rank = useMemo(() => {
+    const ranked = race.config.runnerOrder
+      .map((id) => race.runners[id])
+      .filter(
+        (r) =>
+          r && Object.values(race.laps).some((l) => l.runnerId === r.id && l.status === 'done'),
+      )
+      .sort((a, b) => a!.currentPace_secPerKm - b!.currentPace_secPerKm);
+    const map: Record<string, 1 | 2 | 3> = {};
+    ranked.slice(0, 3).forEach((r, i) => (map[r!.id] = (i + 1) as 1 | 2 | 3));
+    return map;
+  }, [race]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -19,18 +36,22 @@ export default function Runners() {
           ).length;
           const next = nextLapForRunner(race, id);
           const paceDiff = runner.currentPace_secPerKm - runner.basePace_secPerKm;
+          const medal = rank[id];
           return (
             <li key={id}>
               <Link
                 to={`/runners/${id}`}
-                className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3"
+                className={`flex items-center justify-between gap-3 rounded-xl border bg-slate-900 px-4 py-3 ${
+                  medal ? 'border-amber-500/40' : 'border-slate-800'
+                }`}
               >
-                <div>
-                  <div className="font-bold">
-                    <span className="mr-2 text-slate-500">{idx + 1}.</span>
-                    {runner.name}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 font-bold">
+                    <span className="text-slate-500">{idx + 1}.</span>
+                    <span className="truncate">{runner.name}</span>
+                    {medal && <RankMedal rank={medal} compact />}
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
                     <span className="tnum">{paceToStr(runner.currentPace_secPerKm)}/km</span>
                     {doneLaps > 0 && paceDiff !== 0 && (
                       <span

@@ -52,6 +52,18 @@ export default function Dashboard() {
   }, [laps]);
   const chronoStopped = finished && !current && lastFinishMs !== null;
   const chronoRefMs = chronoStopped ? lastFinishMs : now;
+
+  // Allure moyenne générale de l'équipe : temps réel cumulé / distance courue.
+  const avgPace = useMemo(() => {
+    let sec = 0;
+    let count = 0;
+    for (const l of laps)
+      if (l.status === 'done' && l.actualDuration_sec != null) {
+        sec += l.actualDuration_sec;
+        count += 1;
+      }
+    return count > 0 ? sec / (count * race.config.loopDistance_km) : null;
+  }, [laps, race.config.loopDistance_km]);
   const progress = Math.min(
     1,
     Math.max(0, (chronoRefMs - effectiveStartMs) / (endMs - effectiveStartMs)),
@@ -81,9 +93,16 @@ export default function Dashboard() {
     <div className="flex flex-col gap-4">
       {/* Stats d'équipe + chrono course */}
       <header className="flex items-start justify-between gap-3">
-        <div className="text-2xl font-bold leading-tight tnum">
-          {done} tour{done > 1 ? 's' : ''} · {fmtKm(done * race.config.loopDistance_km)} km · D+{' '}
-          {Math.round(done * (race.config.elevationGain_m ?? 0))} m
+        <div>
+          <div className="text-2xl font-bold leading-tight tnum">
+            {done} tour{done > 1 ? 's' : ''} · {fmtKm(done * race.config.loopDistance_km)} km · D+{' '}
+            {Math.round(done * (race.config.elevationGain_m ?? 0))} m
+          </div>
+          {avgPace != null && (
+            <div className="mt-0.5 text-sm text-slate-400">
+              allure moyenne <span className="font-semibold text-sky-300 tnum">{paceToStr(avgPace)}/km</span>
+            </div>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <div className="text-xs uppercase text-slate-400">

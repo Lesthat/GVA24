@@ -2,8 +2,16 @@ import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Play, Square } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
 import { sortedLaps } from '../lib/race';
-import { fmtDayTime, fmtDuration, fmtSignedDuration, fmtTimeHM, secondsBetween } from '../lib/time';
+import {
+  fmtDayTime,
+  fmtDuration,
+  fmtSignedDuration,
+  fmtTimeHM,
+  paceToStr,
+  secondsBetween,
+} from '../lib/time';
 import { TimeEdit } from '../components/TimeEdit';
+import { RankMedal } from '../components/RankMedal';
 import type { Lap } from '../lib/types';
 
 /** Écart de durée (réel − prévu) ; null tant que le tour n'est pas terminé. */
@@ -52,6 +60,17 @@ export default function Timeline() {
     [race],
   );
 
+  // 3 meilleurs runs : tours terminés les plus rapides (distance constante →
+  // la durée suffit à classer). Top 3 → médailles.
+  const runRank = useMemo(() => {
+    const ranked = sortedLaps(race)
+      .filter((l) => l.status === 'done' && l.actualDuration_sec != null)
+      .sort((a, b) => a.actualDuration_sec! - b.actualDuration_sec!);
+    const map: Record<number, 1 | 2 | 3> = {};
+    ranked.slice(0, 3).forEach((l, i) => (map[l.lapNumber] = (i + 1) as 1 | 2 | 3));
+    return map;
+  }, [race]);
+
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-bold">Timeline</h1>
@@ -86,11 +105,14 @@ export default function Timeline() {
                   onClick={() => setExpanded(isOpen ? null : lap.id)}
                 >
                   <div className="min-w-0">
-                    <div className="font-semibold">
-                      #{lap.lapNumber} · {runner?.name}
-                      <span className="ml-2 text-xs font-normal text-slate-400">
-                        {lap.runnerLapNumber === 1 ? '1er' : `${lap.runnerLapNumber}e`} tour
+                    <div className="flex items-center gap-2 font-semibold">
+                      <span className="truncate">
+                        #{lap.lapNumber} · {runner?.name}
+                        <span className="ml-2 text-xs font-normal text-slate-400">
+                          {lap.runnerLapNumber === 1 ? '1er' : `${lap.runnerLapNumber}e`} tour
+                        </span>
                       </span>
+                      {runRank[lap.lapNumber] && <RankMedal rank={runRank[lap.lapNumber]} compact />}
                     </div>
                     <div className="text-sm text-slate-400 tnum">
                       prévu {fmtTimeHM(lap.predictedStart_ts)} → {fmtTimeHM(lap.predictedEnd_ts)} (
@@ -102,6 +124,11 @@ export default function Timeline() {
                         {lap.actualEnd_ts ? fmtTimeHM(lap.actualEnd_ts) : '…'}
                         {lap.actualDuration_sec != null &&
                           ` (${fmtDuration(lap.actualDuration_sec)})`}
+                        {lap.actualDuration_sec != null && (
+                          <span className="ml-2 font-semibold text-sky-300">
+                            {paceToStr(lap.actualDuration_sec / race.config.loopDistance_km)}/km
+                          </span>
+                        )}
                         {delta != null && (
                           <span className={`ml-2 font-semibold ${deltaColor(delta)}`}>
                             {fmtSignedDuration(delta)}
