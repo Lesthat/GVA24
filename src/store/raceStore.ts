@@ -26,6 +26,7 @@ interface RaceStore {
   finishRace: () => Promise<void>;
   resumeRace: () => Promise<void>;
   removeLastLap: () => Promise<void>;
+  importBackup: (data: unknown) => Promise<void>;
   resetRace: () => Promise<void>;
   restoreBackup: () => Promise<void>;
   clearError: () => void;
@@ -131,6 +132,8 @@ export const useRaceStore = create<RaceStore>((set, get) => {
     resumeRace: () => mutate({ type: 'resumeRace' }),
 
     removeLastLap: () => mutate({ type: 'removeLastLap' }),
+
+    importBackup: (data) => mutate({ type: 'import', data }),
 
     resetRace: () => mutate({ type: 'reset' }),
 

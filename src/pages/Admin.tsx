@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -9,6 +9,7 @@ import {
   History,
   RotateCcw,
   Trash2,
+  Upload,
   UserPlus,
 } from 'lucide-react';
 import { useRaceStore } from '../store/raceStore';
@@ -26,8 +27,33 @@ export default function Admin() {
   const finishRace = useRaceStore((s) => s.finishRace);
   const resumeRace = useRaceStore((s) => s.resumeRace);
   const removeLastLap = useRaceStore((s) => s.removeLastLap);
+  const importBackup = useRaceStore((s) => s.importBackup);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const finished = race.config.finished === true;
+
+  function pickImport() {
+    fileRef.current?.click();
+  }
+
+  async function onImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // permet de réimporter le même fichier ensuite
+    if (!file) return;
+    let data: unknown;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      window.alert('Fichier illisible : ce n’est pas un JSON valide.');
+      return;
+    }
+    if (
+      window.confirm(
+        `Importer cette sauvegarde dans la course ${pin} ? L'état actuel sera entièrement remplacé (pensez à l'exporter d'abord si besoin).`,
+      )
+    )
+      importBackup(data);
+  }
 
   function move(index: number, delta: -1 | 1) {
     const order = [...race.config.runnerOrder];
@@ -80,11 +106,25 @@ export default function Admin() {
           >
             <FileJson className="h-5 w-5" /> Sauvegarde complète JSON
           </button>
+          <button
+            onClick={pickImport}
+            className="flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-3 font-semibold text-slate-200"
+          >
+            <Upload className="h-5 w-5" /> Importer une sauvegarde JSON
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={onImportFile}
+          />
         </div>
         <p className="mt-3 text-xs text-slate-500">
           Le CSV contient tous les tours (heures prévues et réelles, durées, allures, écarts, km et
           D+ cumulés) pour Excel ou Google Sheets. Le JSON est une copie fidèle et complète de la
-          course — à conserver précieusement, il permet de tout restaurer.
+          course — à conserver précieusement. L'import remplace la course actuelle (code {pin}) par
+          le contenu d'une sauvegarde JSON.
         </p>
       </section>
 

@@ -89,7 +89,7 @@ téléphones (React SPA)
    │  GET /api/race/2424            état complet au chargement
    │  GET /api/race/2424/events     SSE : état rediffusé à chaque changement
    │  POST /api/race/2424/action    {type: start|finish(+loops)|edit|basePace|order|lapRunner|loop|raceTimes|
-   │                    addRunner|removeRunner|finishRace|resumeRace|removeLastLap|reset|restore}
+   │                    addRunner|removeRunner|finishRace|resumeRace|removeLastLap|import|reset|restore}
    ▼
 serveur Node (dist-server/index.mjs, zéro dépendance runtime)
    │  applique l'action pure + recalcul en cascade (src/lib/race.ts,
@@ -144,8 +144,13 @@ base de données locale : data/race-2424.json (écriture atomique tmp+rename)
 - tout est corrigeable a posteriori dans la Timeline (heure de Paris, champ
   vide + OK pour effacer).
 
-### Reset / restore (onglet Admin)
+### Sauvegarde / import / reset (onglet Admin)
 
+- **Export JSON** : copie fidèle et complète de la course (config, coureurs,
+  tours, temps réels) ; **Export CSV** pour Excel ;
+- **Importer une sauvegarde JSON** : remplace la course du code courant par le
+  contenu d'un fichier exporté — permet de reprendre une ancienne course même
+  après un reset (validation stricte, sinon rejet) ;
 - **Réinitialiser la course** : efface les temps réels, remet les allures de
   base, régénère le planning — l'état courant est d'abord sauvegardé ;
 - **Restaurer la dernière session** : remet la course dans l'état d'avant le

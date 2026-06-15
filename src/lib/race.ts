@@ -1,4 +1,4 @@
-import type { Lap, RaceState, Runner } from './types';
+import type { Lap, RaceConfig, RaceState, Runner } from './types';
 
 /** Clé stable et triable d'un tour dans la base ("lap007"). */
 export const lapKey = (n: number) => `lap${String(n).padStart(3, '0')}`;
@@ -529,6 +529,101 @@ export function applyReset(state: RaceState, nowIso: string): RaceState {
   }
   const backup = { savedAt: nowIso, runners: state.runners, laps: state.laps ?? {} };
   return recalcSchedule({ ...state, backup, runners, laps: {} });
+}
+
+/**
+ * Valide et normalise une sauvegarde complète importée (JSON exporté depuis
+ * l'Admin). Accepte soit l'enveloppe `{ exportedAt, race }`, soit directement
+ * un `RaceState`. Retourne un état propre et cohérent, ou `null` si invalide.
+ * L'état est restauré tel quel (fidélité), sans recalcul du planning.
+ */
+export function sanitizeImport(raw: unknown): RaceState | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const root = raw as Record<string, unknown>;
+  // Enveloppe d'export { exportedAt, race } ou état brut.
+  const candidate = (root.race ?? root) as Record<string, unknown>;
+  const cfg = candidate.config as Record<string, unknown> | undefined;
+  const runnersRaw = candidate.runners as Record<string, unknown> | undefined;
+  const lapsRaw = (candidate.laps ?? {}) as Record<string, unknown>;
+  if (!cfg || typeof runnersRaw !== 'object' || runnersRaw === null) return null;
+
+  // Config : champs essentiels.
+  if (
+    typeof cfg.startTime !== 'string' ||
+    Number.isNaN(Date.parse(cfg.startTime)) ||
+    typeof cfg.endTime !== 'string' ||
+    Number.isNaN(Date.parse(cfg.endTime)) ||
+    typeof cfg.loopDistance_km !== 'number' ||
+    cfg.loopDistance_km <= 0 ||
+    typeof cfg.transitionTime_sec !== 'number' ||
+    !Array.isArray(cfg.runnerOrder) ||
+    cfg.runnerOrder.length === 0 ||
+    !cfg.runnerOrder.every((id) => typeof id === 'string')
+  )
+    return null;
+
+  // Coureurs : chaque entrée doit avoir id/name/allures numériques.
+  const runners: Record<string, Runner> = {};
+  for (const [id, r] of Object.entries(runnersRaw)) {
+    const ro = r as Record<string, unknown>;
+    if (
+      typeof ro.name !== 'string' ||
+      typeof ro.basePace_secPerKm !== 'number' ||
+      typeof ro.currentPace_secPerKm !== 'number'
+    )
+      return null;
+    runners[id] = {
+      id,
+      name: ro.name,
+      basePace_secPerKm: ro.basePace_secPerKm,
+      currentPace_secPerKm: ro.currentPace_secPerKm,
+    };
+  }
+  if ((cfg.runnerOrder as string[]).some((id) => !runners[id])) return null;
+
+  // Tours : on garde les champs connus, en validant les types de base.
+  const laps: Record<string, Lap> = {};
+  for (const [key, l] of Object.entries(lapsRaw)) {
+    const lo = l as Record<string, unknown>;
+    if (
+      typeof lo.lapNumber !== 'number' ||
+      typeof lo.runnerId !== 'string' ||
+      (lo.status !== 'pending' && lo.status !== 'running' && lo.status !== 'done') ||
+      typeof lo.predictedStart_ts !== 'string' ||
+      typeof lo.predictedEnd_ts !== 'string'
+    )
+      return null;
+    laps[key] = {
+      id: key,
+      runnerId: lo.runnerId,
+      lapNumber: lo.lapNumber,
+      runnerLapNumber: typeof lo.runnerLapNumber === 'number' ? lo.runnerLapNumber : 1,
+      status: lo.status,
+      predictedStart_ts: lo.predictedStart_ts,
+      predictedEnd_ts: lo.predictedEnd_ts,
+      actualStart_ts: typeof lo.actualStart_ts === 'string' ? lo.actualStart_ts : null,
+      actualEnd_ts: typeof lo.actualEnd_ts === 'string' ? lo.actualEnd_ts : null,
+      actualDuration_sec: typeof lo.actualDuration_sec === 'number' ? lo.actualDuration_sec : null,
+    };
+  }
+
+  const config: RaceConfig = {
+    startTime: cfg.startTime,
+    endTime: cfg.endTime,
+    loopDistance_km: cfg.loopDistance_km,
+    elevationGain_m: typeof cfg.elevationGain_m === 'number' ? cfg.elevationGain_m : undefined,
+    transitionTime_sec: cfg.transitionTime_sec,
+    runnerOrder: cfg.runnerOrder as string[],
+    finished: cfg.finished === true,
+    finishedAt: typeof cfg.finishedAt === 'string' ? cfg.finishedAt : null,
+  };
+
+  const backup =
+    candidate.backup && typeof candidate.backup === 'object'
+      ? (candidate.backup as RaceState['backup'])
+      : null;
+
+  return { config, runners, laps, backup };
 }
 
 /** Restaure la dernière session sauvegardée par un reset. */

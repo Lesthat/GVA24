@@ -38,6 +38,7 @@ import {
   applyRestore,
   applyStart,
   applyUndoFinish,
+  sanitizeImport,
 } from '../src/lib/race';
 import { createInitialRace } from '../src/lib/seedData';
 import type { RaceState } from '../src/lib/types';
@@ -149,6 +150,11 @@ function applyAction(state: RaceState, body: Record<string, unknown>): RaceState
       return applyResumeRace(state);
     case 'removeLastLap':
       return applyRemoveLastLap(state);
+    case 'import': {
+      const imported = sanitizeImport(body.data);
+      if (!imported) throw new BadRequest('sauvegarde invalide ou illisible');
+      return imported;
+    }
     case 'reset':
       return applyReset(state, new Date().toISOString());
     case 'restore':
